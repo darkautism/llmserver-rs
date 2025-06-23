@@ -9,7 +9,7 @@ edition = "2021"
 #autotokenizer = { path = "../auto-tokenizer"}
 
 [dependencies]
-utoipa = { version = "5.3.1", features = [ "actix_extras" ] }
+utoipa = { version = "5.4.0", features = [ "actix_extras" ] }
 actix-web = "4.11.0"
 serde = { version = "1.0.219", features = ["derive"] }
 actix-service = "2.0.3"
