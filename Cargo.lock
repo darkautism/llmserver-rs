@@ -2411,9 +2411,9 @@ dependencies = [
 
 [[package]]
 name = "rknn-rs"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a22e4c9e9a2049861ac706dd265ad0fb296bb53e21b949018a5acc26abe0f8e0"
+checksum = "670d8db681665197c8c469ebe7991b5213458f5ae105e64f6fdb596b462dd162"
 dependencies = [
  "bindgen",
  "bytemuck",
@@ -2608,9 +2608,9 @@ checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
 
 [[package]]
 name = "sensevoice-rs"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "199ef5cbb2ac8f8af88b06022167a654bf42a62c81fc4da22bfa7934a3233887"
+checksum = "ab5a2a90e98863f8477c4d1270714a9264d3851b687fa3a61b1b6f3bbf337191"
 dependencies = [
  "hf-hub",
  "hound",
