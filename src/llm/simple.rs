@@ -9,11 +9,11 @@ use tokio_stream::wrappers::ReceiverStream;
 use autotokenizer::AutoTokenizer;
 use autotokenizer::DefaultPromptMessage;
 
+use crate::utils::ModelConfig;
 use crate::AIModel;
 use crate::ProcessMessages;
 use crate::ShutdownMessages;
 use crate::LLM;
-use crate::utils::ModelConfig;
 
 #[derive(Debug)]
 pub struct SimpleRkLLM {
@@ -64,11 +64,15 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
         actix_web::rt::spawn(async move {
             let cb = CallbackSendSelfChannel { sender: Some(tx) };
             // TODO: Maybe someday should have good error handling
-            let _ = handle.run(RKLLMInput{
-                input_type: RKLLMInputType::Prompt(input.clone()),
-                enable_thinking: think,
-                role: RKLLMInputRole::User,
-            }, Some(infer_params_cloned), cb);
+            let _ = handle.run(
+                RKLLMInput {
+                    input_type: RKLLMInputType::Prompt(input.clone()),
+                    enable_thinking: think,
+                    role: RKLLMInputRole::User,
+                },
+                Some(infer_params_cloned),
+                cb,
+            );
         });
 
         // 將 Receiver 轉換為 Stream
@@ -95,7 +99,12 @@ impl AIModel for SimpleRkLLM {
         };
         let api = Api::new().unwrap();
         let repo = api.model(config.model_repo.clone());
-        let binding = repo.get(&config.model_path.clone().unwrap_or("model.rkllm".to_owned()))?;
+        let binding = repo.get(
+            &config
+                .model_path
+                .clone()
+                .unwrap_or("model.rkllm".to_owned()),
+        )?;
         let model_path = binding.to_string_lossy();
         let c_str = CString::new(model_path.as_ref()).unwrap();
         param.model_path = c_str.as_ptr();

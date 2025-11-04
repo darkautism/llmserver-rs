@@ -1,0 +1,7 @@
+{
+    "model_repo": "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
+    "model_name": "TinyLlama-1.1B-Chat",
+    "model_path": "tinyllama-1.1b-chat-v1.0.Q8_0.gguf",
+    "model_type": "LLM",
+    "think": false
+}

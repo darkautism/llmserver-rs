@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>LLM Control Panel</title>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0b1016; color: #e5edf5; margin: 0; }
+        header { padding: 1.5rem 2rem; background: linear-gradient(120deg, #101826, #0b1220); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+        header h1 { margin: 0; font-size: 1.5rem; }
+        header nav a { color: #8dbbff; margin-left: 1rem; text-decoration: none; font-weight: 600; }
+        main { padding: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+        section { background: #141c27; border-radius: 14px; padding: 1.25rem 1.5rem; box-shadow: 0 12px 35px rgba(0,0,0,0.35); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: left; }
+        th { color: #9bb7dd; font-size: 0.82rem; letter-spacing: 0.04em; }
+        td { font-size: 0.9rem; }
+        ul { list-style: none; padding-left: 0; margin: 0; }
+        li { margin-bottom: 0.4rem; }
+        form { display: grid; gap: 0.6rem; margin-top: 1rem; }
+        input, select, textarea { background: #101722; border: 1px solid #1f2d3a; border-radius: 8px; padding: 0.55rem; color: #e5edf5; }
+        button { background: linear-gradient(140deg, #1d8bfd, #6a4df8); border: none; border-radius: 8px; padding: 0.65rem 1rem; color: #fff; font-weight: 600; cursor: pointer; }
+        h2 { margin-top: 0; }
+        .forms { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>LLM Control Center</h1>
+    <nav>
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/logout">Logout</a>
+    </nav>
+</header>
+<main>

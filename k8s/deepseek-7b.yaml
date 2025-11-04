@@ -45,7 +45,7 @@ spec:
           privileged: true
         args: ["kautism/DeepSeek-R1-Distill-Qwen-7B-RK3588S-RKLLM1.1.4"]
         ports:
-        - containerPort: 8080
+        - containerPort: 8443
         volumeMounts:
         - name: data
           mountPath: /data/models
@@ -68,5 +68,5 @@ spec:
   ports:
   - protocol: TCP
     port: 80
-    targetPort: 8080
+    targetPort: 8443
   type: NodePort
