@@ -1,0 +1,58 @@
+<section class="forms">
+    <div>
+        <h2>Create API Key</h2>
+        <form method="post" action="/admin/api-keys">
+            <label>Name</label>
+            <input name="name" required />
+            <label>Scope (optional)</label>
+            <input name="scope" placeholder="e.g. text,tts" />
+            <button type="submit">Create</button>
+        </form>
+    </div>
+    <div>
+        <h2>Store Hugging Face Token</h2>
+        <form method="post" action="/admin/provider-credentials">
+            <label>Credential name</label>
+            <input name="name" required />
+            <label>Access token</label>
+            <textarea name="token" rows="3" required></textarea>
+            <button type="submit">Save Token</button>
+        </form>
+    </div>
+    <div>
+        <h2>Download Model</h2>
+        <form method="post" action="/admin/models/download">
+            <label>Repo ID</label>
+            <input name="repo_id" placeholder="org/model" required />
+            <label>Revision (optional)</label>
+            <input name="revision" />
+            <label>Model type</label>
+            <select name="model_type">
+                <option value="LLM">Text (LLM)</option>
+                <option value="ASR">ASR</option>
+                <option value="TTS">TTS</option>
+            </select>
+            <label>Credential name</label>
+            <input name="credential_name" required />
+            <button type="submit">Download</button>
+        </form>
+    </div>
+    <div>
+        <h2>Start Model</h2>
+        <form method="post" action="/admin/models/start">
+            <label>Repo ID</label>
+            <input name="repo_id" required />
+            <label>Instances</label>
+            <input name="instances" type="number" min="1" value="1" />
+            <button type="submit">Start</button>
+        </form>
+    </div>
+    <div>
+        <h2>Stop Model Instance</h2>
+        <form method="post" action="/admin/models/stop">
+            <label>Instance UUID</label>
+            <input name="instance_id" required />
+            <button type="submit">Stop</button>
+        </form>
+    </div>
+</section>

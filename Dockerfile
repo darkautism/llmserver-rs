@@ -15,4 +15,5 @@ COPY --from=0 /lib/librkllmrt.so /lib/librkllmrt.so
 COPY --from=0 /lib/librknnrt.so /lib/librknnrt.so
 COPY --from=0 /llmserver-rs/target/release/llmserver-rs /app/llmserver-rs
 COPY ./assets /app/assets
+EXPOSE 8443
 ENTRYPOINT ["/app/llmserver-rs"]

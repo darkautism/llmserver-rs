@@ -1,7 +1,21 @@
-pub mod audio;
-pub mod chat;
-pub mod llm;
+pub mod admin;
 pub mod asr;
+pub mod audio;
+pub mod auth;
+pub mod chat;
+pub mod db;
+pub mod llm;
+pub mod knowledge;
+pub mod llm;
+pub mod db;
+pub mod llm;
+pub mod crypto;
+pub mod db;
+pub mod hf;
+pub mod llm;
+pub mod manager;
+pub mod token;
+pub mod tts;
 pub mod utils;
 
 use std::{io::Read, pin::Pin};
@@ -76,5 +90,12 @@ pub enum AsrText {
 #[rtype(result = "Result<(), ()>")]
 pub struct ShutdownMessages;
 
+#[derive(actix::Message)]
+#[rtype(result = "Result<Vec<u8>, ()>")]
+pub struct ProcessTts {
+    pub text: String,
+}
+
 pub trait ASR: Actor + Handler<ProcessAudio> + Handler<ShutdownMessages> + AIModel {}
 pub trait LLM: Actor + Handler<ProcessMessages> + Handler<ShutdownMessages> + AIModel {}
+pub trait TTS: Actor + Handler<ProcessTts> + Handler<ShutdownMessages> + AIModel {}

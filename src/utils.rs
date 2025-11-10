@@ -5,6 +5,7 @@ pub enum ModelType {
     #[default]
     LLM,
     ASR,
+    TTS,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

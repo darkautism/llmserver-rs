@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  pgml-db:
+    image: postgresml/postgresml:2.8.3
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pgml_admin
+      POSTGRES_PASSWORD: ${PGML_POSTGRES_PASSWORD:?PGML_POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: pgml
+    ports:
+      - "6543:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pgml_admin -d pgml"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgml-data:/var/lib/postgresql/data
+
+volumes:
+  pgml-data:
+    driver: local

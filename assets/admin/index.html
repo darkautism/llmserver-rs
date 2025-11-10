@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>LLM Server Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background-color: #101418; color: #e8eef5; }
+    header { background-color: #171f26; padding: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    h1 { margin: 0; font-size: 1.4rem; }
+    main { padding: 1.5rem; display: grid; gap: 1.5rem; }
+    section { background: #1d2731; border-radius: 8px; padding: 1.25rem; box-shadow: 0 0 0 1px #22303c inset; }
+    section h2 { margin-top: 0; font-size: 1.2rem; }
+    label { display: block; margin-top: 0.75rem; font-size: 0.9rem; }
+    input, select, textarea { width: 100%; margin-top: 0.25rem; padding: 0.5rem; border-radius: 4px; border: 1px solid #2e3a46; background: #11171d; color: #e8eef5; }
+    button { margin-top: 0.75rem; padding: 0.6rem 1rem; border-radius: 4px; border: none; background: #2c7be5; color: #fff; font-weight: 600; cursor: pointer; }
+    button.secondary { background: #465566; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #22303c; }
+    tr:nth-child(even) { background: #141c24; }
+    .status { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase; }
+    .status.running { background: #1c7d32; }
+    .status.stopped { background: #7d431c; }
+    .hidden { display: none; }
+    #notification { position: fixed; bottom: 1rem; right: 1rem; background: #1d2731; border-radius: 6px; padding: 0.75rem 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.35); opacity: 0; transition: opacity 0.2s ease; }
+    #notification.show { opacity: 1; }
+    a { color: #78a9ff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LLM Server Administration</h1>
+    <div id="session-info"></div>
+  </header>
+  <main>
+    <section id="auth-section">
+      <h2>Authentication</h2>
+      <form id="login-form">
+        <label for="username">Username</label>
+        <input id="username" name="username" required />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required />
+        <button type="submit">Sign In</button>
+      </form>
+      <button id="logout-btn" class="secondary hidden">Sign Out</button>
+    </section>
+
+    <section id="api-keys" class="hidden">
+      <h2>API Keys</h2>
+      <form id="create-key-form">
+        <label for="key-label">Label</label>
+        <input id="key-label" required />
+        <label for="key-limit">Token Limit (optional)</label>
+        <input id="key-limit" type="number" min="0" />
+        <button type="submit">Create API Key</button>
+      </form>
+      <div id="new-key" class="hidden"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Last Four</th>
+            <th>Status</th>
+            <th>Usage</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="keys-table"></tbody>
+      </table>
+    </section>
+
+    <section id="models" class="hidden">
+      <h2>Models</h2>
+      <form id="create-model-form">
+        <label for="model-name">Model Name</label>
+        <input id="model-name" required />
+        <label for="repo-id">Hugging Face Repository</label>
+        <input id="repo-id" placeholder="org/model" required />
+        <label for="model-revision">Revision (optional)</label>
+        <input id="model-revision" />
+        <label for="model-type">Model Type</label>
+        <select id="model-type">
+          <option value="LLM">Text (LLM)</option>
+          <option value="TTS">Text-to-Speech</option>
+        </select>
+        <label><input type="checkbox" id="auto-download" /> Download immediately</label>
+        <label for="model-files">Specific files (comma-separated, optional)</label>
+        <input id="model-files" />
+        <button type="submit">Register Model</button>
+      </form>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Repository</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="models-table"></tbody>
+      </table>
+    </section>
+
+    <section id="hf-token" class="hidden">
+      <h2>Hugging Face Token</h2>
+      <form id="hf-token-form">
+        <label for="hf-token-input">Token</label>
+        <input id="hf-token-input" type="password" required />
+        <button type="submit">Save Token</button>
+      </form>
+      <div id="hf-token-meta"></div>
+    </section>
+  </main>
+  <div id="notification"></div>
+  <script>
+    const notify = (message, isError = false) => {
+      const el = document.getElementById('notification');
+      el.textContent = message;
+      el.style.background = isError ? '#7d1c2e' : '#1d2731';
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 3500);
+    };
+
+    const jsonRequest = async (url, options = {}) => {
+      const response = await fetch(url, Object.assign({
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      }, options));
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || response.statusText);
+      }
+      if (response.status === 204) return null;
+      return response.json();
+    };
+
+    const refreshSession = async () => {
+      try {
+        const info = await jsonRequest('/admin/api/session');
+        document.getElementById('session-info').textContent = `Signed in as ${info.username}`;
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('logout-btn').classList.remove('hidden');
+        document.getElementById('api-keys').classList.remove('hidden');
+        document.getElementById('models').classList.remove('hidden');
+        document.getElementById('hf-token').classList.remove('hidden');
+        await Promise.all([loadApiKeys(), loadModels(), loadHfToken()]);
+      } catch (err) {
+        document.getElementById('session-info').textContent = 'Signed out';
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('logout-btn').classList.add('hidden');
+        document.getElementById('api-keys').classList.add('hidden');
+        document.getElementById('models').classList.add('hidden');
+        document.getElementById('hf-token').classList.add('hidden');
+      }
+    };
+
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      try {
+        await jsonRequest('/admin/api/login', {
+          method: 'POST',
+          body: JSON.stringify({ username, password })
+        });
+        notify('Signed in successfully');
+        event.target.reset();
+        await refreshSession();
+      } catch (err) {
+        notify(err.message, true);
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      try {
+        await jsonRequest('/admin/api/logout', { method: 'POST' });
+        notify('Signed out');
+      } catch (err) {
+        notify(err.message, true);
+      }
+      await refreshSession();
+    });
+
+    const loadApiKeys = async () => {
+      try {
+        const keys = await jsonRequest('/admin/api/api-keys');
+        const tbody = document.getElementById('keys-table');
+        tbody.innerHTML = '';
+        keys.forEach((key) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${key.label}</td>
+            <td>${key.last_four}</td>
+            <td>${key.is_active ? 'Active' : 'Disabled'}</td>
+            <td>${key.prompt_tokens_used + key.completion_tokens_used} tokens</td>
+            <td>
+              <button data-action="toggle" data-id="${key.id}" class="secondary">${key.is_active ? 'Disable' : 'Enable'}</button>
+              <button data-action="delete" data-id="${key.id}" class="secondary">Delete</button>
+            </td>`;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        notify(`Failed to load API keys: ${err.message}`, true);
+      }
+    };
+
+    document.getElementById('create-key-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const label = document.getElementById('key-label').value.trim();
+      const tokenLimitValue = document.getElementById('key-limit').value;
+      const token_limit = tokenLimitValue ? Number(tokenLimitValue) : null;
+      try {
+        const created = await jsonRequest('/admin/api/api-keys', {
+          method: 'POST',
+          body: JSON.stringify({ label, token_limit })
+        });
+        document.getElementById('new-key').classList.remove('hidden');
+        document.getElementById('new-key').innerHTML = `<strong>Store this key securely:</strong><br><code>${created.api_key}</code>`;
+        event.target.reset();
+        notify('API key created');
+        await loadApiKeys();
+      } catch (err) {
+        notify(err.message, true);
+      }
+    });
+
+    document.getElementById('keys-table').addEventListener('click', async (event) => {
+      if (!(event.target instanceof HTMLButtonElement)) return;
+      const id = event.target.dataset.id;
+      const action = event.target.dataset.action;
+      try {
+        if (action === 'toggle') {
+          const isActive = event.target.textContent === 'Disable';
+          await jsonRequest(`/admin/api/api-keys/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ is_active: !isActive })
+          });
+        } else if (action === 'delete') {
+          await jsonRequest(`/admin/api/api-keys/${id}`, { method: 'DELETE' });
+        }
+        await loadApiKeys();
+      } catch (err) {
+        notify(err.message, true);
+      }
+    });
+
+    const loadModels = async () => {
+      try {
+        const models = await jsonRequest('/admin/api/models');
+        const tbody = document.getElementById('models-table');
+        tbody.innerHTML = '';
+        models.forEach((model) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${model.name}</td>
+            <td>${model.repo_id}</td>
+            <td>${model.model_type}</td>
+            <td><span class="status ${model.status}">${model.status}</span></td>
+            <td>
+              <button class="secondary" data-action="download" data-id="${model.id}">Download</button>
+              <button class="secondary" data-action="start" data-id="${model.id}">Start</button>
+              <button class="secondary" data-action="stop" data-id="${model.id}">Stop</button>
+            </td>`;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        notify(`Failed to load models: ${err.message}`, true);
+      }
+    };
+
+    document.getElementById('create-model-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = document.getElementById('model-name').value.trim();
+      const repo_id = document.getElementById('repo-id').value.trim();
+      const revision = document.getElementById('model-revision').value.trim();
+      const model_type = document.getElementById('model-type').value;
+      const auto_download = document.getElementById('auto-download').checked;
+      const filesInput = document.getElementById('model-files').value.trim();
+      const files = filesInput ? filesInput.split(',').map((s) => s.trim()).filter(Boolean) : null;
+      try {
+        await jsonRequest('/admin/api/models', {
+          method: 'POST',
+          body: JSON.stringify({ name, repo_id, revision: revision || null, model_type, auto_download, files })
+        });
+        event.target.reset();
+        notify('Model registered');
+        await loadModels();
+      } catch (err) {
+        notify(err.message, true);
+      }
+    });
+
+    document.getElementById('models-table').addEventListener('click', async (event) => {
+      if (!(event.target instanceof HTMLButtonElement)) return;
+      const id = event.target.dataset.id;
+      const action = event.target.dataset.action;
+      try {
+        if (action === 'download') {
+          await jsonRequest(`/admin/api/models/${id}/download`, { method: 'POST' });
+          notify('Download started');
+        }
+        if (action === 'start') {
+          await jsonRequest(`/admin/api/models/${id}/start`, { method: 'POST' });
+          notify('Model started');
+        }
+        if (action === 'stop') {
+          await jsonRequest(`/admin/api/models/${id}/stop`, { method: 'POST' });
+          notify('Model stopped');
+        }
+        await loadModels();
+      } catch (err) {
+        notify(err.message, true);
+      }
+    });
+
+    const loadHfToken = async () => {
+      try {
+        const tokens = await jsonRequest('/admin/api/hf-tokens');
+        const el = document.getElementById('hf-token-meta');
+        if (tokens.length === 0) {
+          el.textContent = 'No token stored';
+        } else {
+          const token = tokens[0];
+          el.innerHTML = `Last updated: <strong>${token.updated_at}</strong>`;
+        }
+      } catch (err) {
+        notify(`Unable to load Hugging Face token metadata: ${err.message}`, true);
+      }
+    };
+
+    document.getElementById('hf-token-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const token = document.getElementById('hf-token-input').value.trim();
+      try {
+        await jsonRequest('/admin/api/hf-tokens', {
+          method: 'PUT',
+          body: JSON.stringify({ token })
+        });
+        event.target.reset();
+        notify('Token saved');
+        await loadHfToken();
+      } catch (err) {
+        notify(err.message, true);
+      }
+    });
+
+    refreshSession();
+  </script>
+</body>
+</html>

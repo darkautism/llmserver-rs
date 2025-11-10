@@ -1642,6 +1642,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_variant",
+ "subtle",
  "tokio",
  "tokio-stream",
  "utoipa",

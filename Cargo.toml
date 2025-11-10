@@ -14,7 +14,7 @@ actix-web = "4.11.0"
 serde = { version = "1.0.219", features = ["derive"] }
 actix-service = "2.0.3"
 futures = "0.3.31"
-tokio = "1.45.1"
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "macros", "sync"] }
 utoipa-actix-web = "0.1.2"
 utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
 serde_json = "1.0.140"
@@ -30,3 +30,16 @@ clap = "4.5.39"
 actix-multipart = "0.7.2"
 sensevoice-rs = "0.1.3"
 hound = "3.5.1"
+tokio-postgres = { version = "0.7.12", features = ["with-serde_json-1", "with-chrono-0_4"] }
+rustls = { version = "0.23.23", default-features = false, features = ["std"] }
+tokio-rustls = "0.26.2"
+webpki-roots = "0.25.4"
+chrono = { version = "0.4.39", default-features = false, features = ["clock", "serde"] }
+anyhow = "1.0.95"
+log = "0.4.25"
+subtle = "2.5.0"
+deadpool-postgres = { version = "0.12.1", features = ["serde"] }
+tokio-postgres = { version = "0.7.12", features = ["with-serde_json-1", "with-chrono-0_4"] }
+chrono = { version = "0.4.39", default-features = false, features = ["clock", "serde"] }
+anyhow = "1.0.95"
+log = "0.4.25"

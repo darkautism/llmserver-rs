@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLMServer PGML Admin</title>
+    <style>
+        :root {
+            color-scheme: dark light;
+            font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        body {
+            margin: 0 auto;
+            padding: 2rem;
+            max-width: 1100px;
+            line-height: 1.5;
+            background: #020617;
+            color: #e2e8f0;
+        }
+        a {
+            color: #38bdf8;
+        }
+        h1, h2, h3 {
+            color: #38bdf8;
+        }
+        form, .card {
+            display: block;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 1.5rem;
+            border-radius: 0.85rem;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            box-shadow: 0 22px 48px rgba(2, 132, 199, 0.25);
+            margin-bottom: 1.5rem;
+        }
+            max-width: 960px;
+            line-height: 1.5;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        h1, h2 {
+            color: #38bdf8;
+        }
+        form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 40px rgba(8, 112, 227, 0.2);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        input, textarea, select {
+            margin-top: 0.35rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(15, 23, 42, 0.65);
+            color: inherit;
+            font-size: 0.95rem;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        input, textarea {
+            margin-top: 0.35rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: rgba(15, 23, 42, 0.6);
+            color: inherit;
+            font-size: 0.95rem;
+        }
+        button {
+            padding: 0.85rem 1.5rem;
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            color: #0f172a;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 40px rgba(56, 189, 248, 0.35);
+        }
+        .models {
+            display: grid;
+            gap: 1rem;
+        }
+        .card {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 8px 30px rgba(8, 112, 227, 0.2);
+        }
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: #a5b4fc;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            background: rgba(56, 189, 248, 0.18);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #bae6fd;
+            margin-right: 0.5rem;
+        }
+        .metadata {
+            margin-top: 0.75rem;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .danger {
+            background: rgba(248, 113, 113, 0.15);
+            color: #fecaca;
+            border-color: rgba(248, 113, 113, 0.4);
+        }
+        .status {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+        #auth-gate {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.92);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #auth-gate.active {
+            display: flex;
+        }
+        #auth-gate form {
+            max-width: 420px;
+            width: 90%;
+            background: rgba(15, 23, 42, 0.95);
+            box-shadow: 0 24px 60px rgba(8, 112, 227, 0.45);
+        }
+        #auth-gate h2 {
+            grid-column: 1 / -1;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        #auth-gate p {
+            grid-column: 1 / -1;
+            margin-top: 0;
+            font-size: 0.9rem;
+            opacity: 0.85;
+        }
+        .inline-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .inline-actions button {
+            flex: 1;
+        }
+        .muted {
+            color: rgba(226, 232, 240, 0.75);
+        }
+        code {
+            background: rgba(15, 23, 42, 0.7);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.4rem;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="auth-gate" class="active">
+        <form id="auth-form">
+            <h2>Administrator Sign-in</h2>
+            <p>Paste the bearer token configured via <code>ADMIN_API_TOKEN</code> to unlock the PGML controls.</p>
+            <label>
+                Admin Token
+                <input id="admin-token" type="password" placeholder="sk_live_..." autocomplete="off" required />
+            </label>
+            <div class="inline-actions">
+                <button type="submit">Unlock Dashboard</button>
+                <button type="button" id="clear-storage">Forget Token</button>
+            </div>
+            <p class="muted">Tokens never leave your browser storage. Requests are authenticated with the <code>Authorization: Bearer</code> header.</p>
+        </form>
+    </div>
+
+    <h1>PostgresML Admin Dashboard</h1>
+    <p>Register Retrieval-Augmented Generation (RAG) pipelines, manage embeddings and connect the LLM runtime directly to your PostgresML catalog.</p>
+
+    <div class="card">
+        <h2>Supabase &amp; PostgresML quickstart</h2>
+        <p>Create a managed Postgres backend with TLS enabled:</p>
+        <ol>
+            <li>Launch the provided <code>docker-compose.supabase.yml</code> stack to bootstrap Supabase locally.</li>
+            <li>Install the <a href="https://github.com/eyshoit-commits/pgml" target="_blank" rel="noopener">PGML extension</a> in the Supabase database using the helper container defined in the compose file.</li>
+            <li>Set <code>DATABASE_URL</code>, <code>PGML_TLS_MODE=require</code> and a strong <code>ADMIN_API_TOKEN</code> in your environment before starting the LLM server.</li>
+        </ol>
+        <p class="muted">The TinyLlama startup model is available out-of-the-box so you can validate the full ingestion workflow without downloading multi-gigabyte checkpoints.</p>
+    </div>
+    </style>
+</head>
+<body>
+    <h1>PostgresML Admin Dashboard</h1>
+    <p>Manage PGML pipelines, load Retrieval-Augmented Generation (RAG) models, and push them directly into the Postgres database.</p>
+    <p style="margin-top:-0.5rem;font-size:0.9rem;opacity:0.85;">Need a managed backend? Provision a TLS-enabled instance via <a href="https://github.com/supabase/supabase" target="_blank" rel="noopener" style="color:#38bdf8;">Supabase</a> and set <code>PGML_TLS_MODE=require</code> before opening this dashboard.</p>
+
+    <form id="model-form">
+        <label>
+            Pipeline Name
+            <input id="pipeline-name" placeholder="rag_search" required />
+        </label>
+        <label>
+            Model URI
+            <input id="model-uri" placeholder="hf://TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/tinyllama-1.1b-chat-v1.0.Q8_0.gguf" required />
+        </label>
+        <label>
+            Task
+            <select id="task" required>
+                <option value="rag">rag</option>
+                <option value="embed">embed</option>
+                <option value="rerank">rerank</option>
+                <option value="finetune">finetune</option>
+            </select>
+        </label>
+        <label>
+            Collection Name
+            <input id="collection-name" placeholder="support_articles" required />
+        </label>
+        <label style="grid-column: 1 / -1;">
+            Metadata (JSON)
+            <textarea id="metadata" placeholder='{"description":"Customer support corpus"}'></textarea>
+        </label>
+        <div style="grid-column: 1 / -1; display: flex; gap: 1rem; justify-content: flex-end;">
+            <button type="submit">Register / Update Pipeline</button>
+        </div>
+        <p id="form-status" class="status" style="grid-column:1 / -1;"></p>
+    </form>
+
+    <div class="card">
+        <h2>Registered pipelines</h2>
+        <p class="muted">These entries are persisted directly in the PostgresML tables. Deleting a pipeline only removes metadata &mdash; embeddings must be dropped manually if required.</p>
+        <div class="models" id="models"></div>
+        <p id="models-status" class="status"></p>
+    </div>
+
+    <script>
+        const tokenStorageKey = 'pgmlAdminToken';
+        const sessionEndpoint = '/admin/api/session';
+        const apiBase = '/admin/api';
+
+        const authGate = document.getElementById('auth-gate');
+        const authForm = document.getElementById('auth-form');
+        const adminTokenInput = document.getElementById('admin-token');
+        const clearStorageBtn = document.getElementById('clear-storage');
+        const formStatus = document.getElementById('form-status');
+        const modelsStatus = document.getElementById('models-status');
+        const modelsContainer = document.getElementById('models');
+
+        function currentToken() {
+            return window.localStorage.getItem(tokenStorageKey) || '';
+        }
+
+        function authHeaders() {
+            const token = currentToken();
+            return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+        }
+
+        async function verifyToken(token) {
+            try {
+                const response = await fetch(sessionEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+
+                if (response.ok) {
+                    if (token) {
+                        window.localStorage.setItem(tokenStorageKey, token);
+                    } else {
+                        window.localStorage.removeItem(tokenStorageKey);
+                    }
+                    authGate.classList.remove('active');
+                    adminTokenInput.value = '';
+                    await refreshModels();
+                    return true;
+                }
+
+                throw new Error('Invalid admin token');
+            } catch (error) {
+                authGate.classList.add('active');
+                modelsStatus.textContent = error.message;
+                return false;
+            }
+        }
+
+        authForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const token = adminTokenInput.value.trim();
+            if (!token) {
+                modelsStatus.textContent = 'Please supply a token.';
+                return;
+            }
+            modelsStatus.textContent = 'Verifying token...';
+            await verifyToken(token);
+        });
+
+        clearStorageBtn.addEventListener('click', () => {
+            window.localStorage.removeItem(tokenStorageKey);
+            adminTokenInput.value = '';
+            modelsContainer.innerHTML = '';
+            modelsStatus.textContent = 'Token removed. Please authenticate again.';
+            authGate.classList.add('active');
+        });
+
+        async function refreshModels() {
+            modelsStatus.textContent = 'Loading pipelines...';
+            try {
+                const response = await fetch(`${apiBase}/models`, {
+                    headers: { 'Authorization': `Bearer ${currentToken()}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        authGate.classList.add('active');
+                        modelsStatus.textContent = 'Authentication required.';
+                        return;
+                    }
+                    throw new Error('Failed to load pipelines');
+                }
+
+                const payload = await response.json();
+                renderModels(payload.models || []);
+                modelsStatus.textContent = payload.models?.length ? '' : 'No pipelines registered yet.';
+            } catch (error) {
+                modelsStatus.textContent = error.message;
+            }
+        }
+
+        function renderModels(models) {
+            modelsContainer.innerHTML = '';
+            models.forEach((model) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                const metadata = JSON.stringify(model.metadata || {}, null, 2);
+                card.innerHTML = `
+                    <h3>${model.pipeline_name}</h3>
+                    <p>
+                        <span class="badge">Task: ${model.task}</span>
+                        <span class="badge">Collection: ${model.collection_name}</span>
+                    </p>
+                    <p class="muted">Model: ${model.model_uri}</p>
+                    <pre class="metadata">${metadata}</pre>
+                    <div class="inline-actions">
+                        <button class="danger" data-pipeline="${model.pipeline_name}">Delete Pipeline</button>
+                    </div>
+                `;
+                const deleteBtn = card.querySelector('button');
+                deleteBtn.addEventListener('click', () => deletePipeline(model.pipeline_name));
+                modelsContainer.appendChild(card);
+            });
+        }
+
+        async function deletePipeline(pipelineName) {
+            if (!confirm(`Delete pipeline "${pipelineName}"? This only removes metadata.`)) {
+                return;
+            }
+            modelsStatus.textContent = 'Deleting pipeline...';
+            try {
+                const response = await fetch(`${apiBase}/models/${encodeURIComponent(pipelineName)}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${currentToken()}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        authGate.classList.add('active');
+                        modelsStatus.textContent = 'Authentication required.';
+                        return;
+                    }
+                    throw new Error('Unable to delete pipeline');
+                }
+
+                modelsStatus.textContent = 'Pipeline removed.';
+                await refreshModels();
+            } catch (error) {
+                modelsStatus.textContent = error.message;
+            }
+        }
+
+        document.getElementById('model-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            formStatus.textContent = 'Saving pipeline...';
+
+            const payload = {
+                pipeline_name: document.getElementById('pipeline-name').value.trim(),
+                model_uri: document.getElementById('model-uri').value.trim(),
+                task: document.getElementById('task').value.trim(),
+                collection_name: document.getElementById('collection-name').value.trim(),
+                metadata: (() => {
+                    const raw = document.getElementById('metadata').value.trim();
+                    if (!raw) {
+                        return {};
+                    }
+                    try {
+                        return JSON.parse(raw);
+                    } catch (error) {
+                        throw new Error('Metadata must be valid JSON.');
+                    }
+                })()
+            };
+
+            if (!payload.pipeline_name || !payload.model_uri || !payload.task || !payload.collection_name) {
+                formStatus.textContent = 'All fields are required.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${apiBase}/models`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        authGate.classList.add('active');
+                        formStatus.textContent = 'Authentication required.';
+                        return;
+                    }
+                    const errorBody = await response.json().catch(() => ({}));
+                    throw new Error(errorBody.message || 'Unable to register pipeline');
+                }
+
+                formStatus.textContent = 'Pipeline registered.';
+                await refreshModels();
+            } catch (error) {
+                formStatus.textContent = error.message;
+            }
+        });
+
+        (async () => {
+            const ok = await verifyToken(currentToken() || '');
+            if (!ok) {
+                authGate.classList.add('active');
+            }
+        })();
+            <input type="text" name="pipeline_name" required placeholder="rag_support_bot" />
+        </label>
+        <label>
+            Model URI
+            <input type="text" name="model_uri" required placeholder="hf://org/model-name" />
+        </label>
+        <label>
+            Task
+            <input type="text" name="task" required placeholder="rag" />
+        </label>
+        <label>
+            Collection Name
+            <input type="text" name="collection_name" required placeholder="support_documents" />
+        </label>
+        <label style="grid-column: 1 / -1;">
+            Metadata (JSON)
+            <textarea name="metadata" rows="4" placeholder='{"chunk_size":512,"description":"Support knowledge base"}'></textarea>
+        </label>
+        <div style="grid-column: 1 / -1; display:flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+            <button type="submit">Register / Update Pipeline</button>
+            <span id="form-status"></span>
+        </div>
+    </form>
+
+    <section>
+        <h2>Registered Pipelines</h2>
+        <div id="model-list" class="models"></div>
+    </section>
+
+    <template id="model-card-template">
+        <div class="card">
+            <h3 data-field="pipeline_name"></h3>
+            <div>
+                <span class="badge" data-field="task"></span>
+                <span class="badge" data-field="collection_name"></span>
+            </div>
+            <p><strong>Model:</strong> <span data-field="model_uri"></span></p>
+            <div class="status" data-field="status"></div>
+            <pre class="metadata" data-field="metadata"></pre>
+            <button class="danger" data-action="delete">Delete Pipeline</button>
+        </div>
+    </template>
+
+    <script>
+        const list = document.getElementById("model-list");
+        const template = document.getElementById("model-card-template");
+        const form = document.getElementById("model-form");
+        const status = document.getElementById("form-status");
+
+        const fetchModels = async () => {
+            list.innerHTML = "<p>Loading pipelines...</p>";
+            try {
+                const response = await fetch("/admin/api/models");
+                if (!response.ok) {
+                    const error = await response.json();
+                    list.innerHTML = `<p class="danger">${error.message}</p>`;
+                    return;
+                }
+                const payload = await response.json();
+                if (!payload.models.length) {
+                    list.innerHTML = "<p>No pipelines registered yet.</p>";
+                    return;
+                }
+
+                list.innerHTML = "";
+                payload.models.forEach((model) => {
+                    const node = template.content.cloneNode(true);
+                    node.querySelector('[data-field="pipeline_name"]').textContent = model.pipeline_name;
+                    node.querySelector('[data-field="task"]').textContent = model.task;
+                    node.querySelector('[data-field="collection_name"]').textContent = model.collection_name;
+                    node.querySelector('[data-field="model_uri"]').textContent = model.model_uri;
+                    const metadataField = node.querySelector('[data-field="metadata"]');
+                    metadataField.textContent = JSON.stringify(model.metadata ?? {}, null, 2);
+                    const statusField = node.querySelector('[data-field="status"]');
+                    statusField.innerHTML = `<strong>Status:</strong> ${model.last_status}`;
+                    if (model.last_error) {
+                        statusField.innerHTML += `<br/><span class="danger">${model.last_error}</span>`;
+                    }
+                    node.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+                        if (!confirm(`Delete pipeline ${model.pipeline_name}?`)) {
+                            return;
+                        }
+                        const result = await fetch(`/admin/api/models/${encodeURIComponent(model.pipeline_name)}`, {
+                            method: "DELETE",
+                        });
+                        if (!result.ok && result.status !== 204) {
+                            alert("Failed to delete pipeline");
+                        }
+                        await fetchModels();
+                    });
+                    list.appendChild(node);
+                });
+            } catch (err) {
+                list.innerHTML = `<p class="danger">Failed to load pipelines: ${err}</p>`;
+            }
+        };
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            status.textContent = "";
+            const formData = new FormData(form);
+            let metadata = {};
+            const metadataRaw = formData.get("metadata");
+            if (metadataRaw) {
+                try {
+                    metadata = JSON.parse(metadataRaw);
+                } catch (err) {
+                    status.textContent = "Metadata must be valid JSON";
+                    status.className = "danger";
+                    return;
+                }
+            }
+            const payload = {
+                pipeline_name: formData.get("pipeline_name"),
+                model_uri: formData.get("model_uri"),
+                task: formData.get("task"),
+                collection_name: formData.get("collection_name"),
+                metadata,
+            };
+            try {
+                const response = await fetch("/admin/api/models", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    status.textContent = error.message;
+                    status.className = "danger";
+                    return;
+                }
+                status.textContent = "Pipeline saved successfully";
+                status.className = "";
+                form.reset();
+                await fetchModels();
+            } catch (err) {
+                status.textContent = `Failed to submit pipeline: ${err}`;
+                status.className = "danger";
+            }
+        });
+
+        fetchModels();
+    </script>
+</body>
+</html>

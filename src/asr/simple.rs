@@ -1,7 +1,4 @@
-use std::{
-    pin::Pin,
-    sync::Arc,
-};
+use std::{pin::Pin, sync::Arc};
 
 use actix::Actor;
 use hound::WavReader;
@@ -9,7 +6,7 @@ use sensevoice_rs::{fsmn_vad::VADXOptions, SenseVoiceSmall};
 use serde::Deserialize;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{AIModel, ProcessAudio, ShutdownMessages, AsrText, ASR};
+use crate::{AIModel, AsrText, ProcessAudio, ShutdownMessages, ASR};
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct SimpleASRConfig {
