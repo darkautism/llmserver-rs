@@ -46,18 +46,16 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
             })
             .collect::<Vec<_>>();
 
-        let mut input = match atoken.apply_chat_template(prompt, true) {
+
+        let input = match atoken.apply_chat_template(prompt, true) {
             Ok(parsed) => parsed,
-            Err(_) => {
-                println!("apply_chat_template failed.");
+            Err(err) => {
+                println!("apply_chat_template failed. Error: {:?}", err);
                 "".to_owned()
             }
         };
         
         let think = self.config.think.unwrap_or(false);
-        if !think {
-            input += "\n\n</think>\n\n";
-        }
 
         let handle = self.handle.clone();
         let infer_params_cloned = self.infer_params.clone();

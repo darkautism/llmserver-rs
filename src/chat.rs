@@ -1,5 +1,6 @@
 use actix::Recipient;
 use actix_web::{
+    middleware::Logger,
     post,
     web::{self, Json},
     HttpResponse, Responder,
@@ -91,6 +92,7 @@ pub struct ChatCompletionsRequest {
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub enum FinishReason {
+    #[serde(rename = "stop")]
     Stop,
     Length,
     FunctionCall,
@@ -107,6 +109,8 @@ pub struct Choice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<Message>,
     #[schema(value_type = String)]
+    pub logprobs: Option<String>,
+    #[schema(value_type = String)]
     pub finish_reason: Option<FinishReason>,
 }
 
@@ -122,6 +126,7 @@ pub struct ChatCompletionsResponse {
     pub id: String,
     pub object: String,
     pub created: u64,
+    pub model: String,
     pub choices: Vec<Choice>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
@@ -141,7 +146,8 @@ pub async fn chat_completions(
     body: Json<ChatCompletionsRequest>,
     llm_pool: web::Data<HashMap<String, Vec<Recipient<ProcessMessages>>>>,
 ) -> impl Responder {
-    let id = "123".to_owned(); // Todo: 要改從資料庫拿
+    println!("Received chat completion request: {:?}", body);
+    let id = "chatcmpl-123".to_owned(); // Todo: 要改從資料庫拿
     let created = SystemTime::now();
     let created = created
         .duration_since(std::time::UNIX_EPOCH)
@@ -180,7 +186,7 @@ pub async fn chat_completions(
                         } else {
                             None
                         },
-                        message: Some(Message {
+                        delta: Some(Message {
                             role: if stream_counter == 0 {
                                 Some(Role::Assistant)
                             } else {
@@ -192,19 +198,21 @@ pub async fn chat_completions(
                                 Some(Content::String(content))
                             },
                         }),
-                        delta: None,
+                        logprobs: None,
+                        message: None,
                     }];
                     let chunk = ChatCompletionsResponse {
                         id: id.clone(),
                         object: object.clone(),
                         created,
+                        model: body.model.clone(),
                         choices,
                         usage: None,
                     };
 
                     stream_counter += 1;
                     // 將 JSON 序列化為字串並添加換行符
-                    let sse_data = serde_json::to_string(&chunk).unwrap() + "\n";
+                    let sse_data = "data: ".to_owned() + &serde_json::to_string(&chunk).unwrap() + "\n\n";
                     Ok::<web::Bytes, actix_web::Error>(web::Bytes::from(sse_data))
                     // 轉為 Bytes 並包裝在 Result 中
                 });
@@ -231,6 +239,7 @@ pub async fn chat_completions(
                         content: Some(Content::String(content)),
                     }),
                     delta: None,
+                    logprobs: None,
                     finish_reason: Some(FinishReason::Stop),
                 }];
 
@@ -238,17 +247,12 @@ pub async fn chat_completions(
                     id,
                     object,
                     created,
+                    model: body.model.clone(),
                     choices,
                     usage: Some(usage),
                 })
             }
         }
-        Ok(Ok(Err(e))) => HttpResponse::InternalServerError().json(OpenAiError {
-            message: format!("Internal processing error: {:?}", e),
-            code: "processing_error".to_owned(),
-            r#type: "internal_error".to_owned(),
-            param: None,
-        }),
         Err(_timeout) => HttpResponse::UnavailableForLegalReasons().json(OpenAiError {
             message: format!("Server Busy."),
             code: "server_".to_owned(),
@@ -258,6 +262,12 @@ pub async fn chat_completions(
         Ok(Err(e)) => HttpResponse::UnavailableForLegalReasons().json(OpenAiError {
             message: format!("Internal server error:{}", e),
             code: "server_".to_owned(),
+            r#type: "internal_error".to_owned(),
+            param: None,
+        }),
+        Ok(Ok(Err(e))) => HttpResponse::InternalServerError().json(OpenAiError {
+            message: format!("Internal processing error: {:?}", e),
+            code: "processing_error".to_owned(),
             r#type: "internal_error".to_owned(),
             param: None,
         }),

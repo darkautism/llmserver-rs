@@ -3,6 +3,9 @@ pub mod chat;
 pub mod llm;
 pub mod asr;
 pub mod utils;
+pub mod ollama;
+pub mod openai;
+
 
 use std::{io::Read, pin::Pin};
 

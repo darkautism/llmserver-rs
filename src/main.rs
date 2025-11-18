@@ -144,12 +144,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (app, api) = App::new()
             .app_data(actix_web::web::Data::new(llm_recipients.clone()))
             .app_data(actix_web::web::Data::new(audio_recipients.clone()))
+            .app_data(actix_web::web::Data::new(model_config_table.clone()))
             .into_utoipa_app()
             .map(|app| app.wrap(Logger::default()))
             .service(
                 scope::scope("/v1")
                     .service(llmserver_rs::chat::chat_completions)
+                    .service(llmserver_rs::openai::models)
                     .service(llmserver_rs::audio::audio_transcriptions),
+            )
+            .service( // Some Ollama compatible APIs
+                scope::scope("/api/")
+                    .service(llmserver_rs::ollama::version)
+                    .service(llmserver_rs::ollama::push)
+                    .service(llmserver_rs::ollama::pull)
+                    .service(llmserver_rs::ollama::ps),
             )
             .service(health)
             .split_for_parts();
