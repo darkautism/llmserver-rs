@@ -121,6 +121,19 @@ The API server provides the following endpoints:
 
 ### Usage example
 
+#### Using with webui
+
+Going to your openwebui, `admin control panel` -> `settings` -> `connections` -> `manager new connection` -> Type http://YourIP:8080/v1 in your url panel
+
+![settings](assets/images/openwebui_settings.png)
+
+Select your model to chat
+
+![openui_chat](assets/images/openwebui_chat.png)
+
+
+#### API
+
 Server side:
 ```Bash
 yourname@hostname$ cargo run happyme531/SenseVoiceSmall-RKNN2
