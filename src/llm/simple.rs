@@ -1,4 +1,5 @@
 use actix::Actor;
+use actix::AsyncContext;
 use hf_hub::api::sync::Api;
 use rkllm_rs::prelude::*;
 use serde_variant::to_variant_name;
@@ -59,7 +60,14 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
         let handle = self.handle.clone();
         let infer_params_cloned = self.infer_params.clone();
         actix_web::rt::spawn(async move {
-            let cb = CallbackSendSelfChannel { sender: Some(tx) };
+            let cb = CallbackSendSelfChannel {
+                sender: Some(tx),
+                abort: Box::new(move || {
+                    if let Err(err) = handle.abort() {
+                        println!("Abort rkllm failed: {}", err)
+                    }
+                }),
+            };
             // TODO: Maybe someday should have good error handling
             let _ = handle.run(
                 RKLLMInput {
@@ -95,7 +103,7 @@ impl AIModel for SimpleRkLLM {
             ..Default::default()
         };
         let api = Api::new().unwrap();
-        
+
         let repo = api.model(config.model_repo.clone());
         let tokenizer_repo = config
             .tokenizer_repo
@@ -157,6 +165,7 @@ impl LLM for SimpleRkLLM {}
 
 struct CallbackSendSelfChannel {
     sender: Option<tokio::sync::mpsc::Sender<String>>,
+    abort: Box<dyn FnMut() + Send + Sync + 'static>,
 }
 impl RkllmCallbackHandler for CallbackSendSelfChannel {
     fn handle(&mut self, result: Option<RKLLMResult>, state: LLMCallState) {
@@ -164,8 +173,22 @@ impl RkllmCallbackHandler for CallbackSendSelfChannel {
             LLMCallState::Normal => {
                 if let Some(result) = result {
                     if let Some(sender) = &self.sender {
-                        while sender.try_send(result.text.clone()).is_err() {
-                            std::thread::yield_now();
+                        let mut err = Ok(());
+                        let mut first = true;
+                        while first || err.is_err() {
+                            first = false;
+                            match err {
+                                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                                    // 通知模型關閉
+                                    (self.abort)();
+                                    return;
+                                }
+                                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                                    std::thread::yield_now();
+                                }
+                                Ok(_) => {}
+                            }
+                            err = sender.try_send(result.text.clone());
                         }
                     }
                 }
