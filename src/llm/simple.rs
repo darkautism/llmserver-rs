@@ -53,7 +53,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
                 "".to_owned()
             }
         };
-        // TODO: 用參數判斷要不要think
+        
         let think = self.config.think.unwrap_or(false);
         if !think {
             input += "\n\n</think>\n\n";

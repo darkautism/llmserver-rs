@@ -1,0 +1,7 @@
+{
+    "model_repo": "limcheekin/seed-coder-8b-rk3588-16k.w8a8.rkllm",
+    "model_name": "seed-coder-8b",
+    "model_path": "seed-coder-8b-rk3588-16k.w8a8.rkllm",
+    "model_type" : "LLM",
+    "think" : false 
+}

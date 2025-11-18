@@ -74,7 +74,8 @@ pub struct ChatCompletionsRequest {
     pub temperature: Option<f32>,
     pub top_p: Option<f32>,
     pub n: Option<i32>,
-    pub stream: Option<bool>,
+    #[serde(default)]
+    pub stream: bool,
     pub stop: Option<Stop>,
     pub max_tokens: Option<i32>,
     pub presence_penalty: Option<f32>,
@@ -168,7 +169,7 @@ pub async fn chat_completions(
 
     match actix_web::rt::time::timeout(std::time::Duration::from_secs(5), send_future).await {
         Ok(Ok(Ok(receiver))) => {
-            if body.stream.unwrap_or(false) {
+            if body.stream {
                 let object = "chat.completion.chunk".to_owned();
                 let mut stream_counter = 0;
                 let sse_stream = receiver.map(move |content| {

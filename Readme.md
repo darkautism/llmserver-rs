@@ -141,6 +141,42 @@ yourname@hostname$ curl http://localhost:8080/v1/audio/transcriptions -H "Conten
 {"text":"大家好喵今天给大家分享的是在线一线语音生成网站的合集能够更加方便大家选择自己想要生成的角色四进入网站可以看到所有的生成模型都在这里选择你想要深层的角色点击进入就来到我频到了生成的页面在文本框内输入你想要生成的内容然后点击生成就好了另外呢因为每次的生成结果都会更都会有一些不一样的地方如果您觉得第一次的生成效果不好的话可以尝试重新生成也可以稍微调节一下像的住址再生成试试上使用时一定要遵守法律法规不可以损害刷害人的形象哦"}
 ```
 
+#### Stream example
+
+```
+kautism@kautism-desktop:~$ curl -X 'POST'   'http://192.168.50.169:8080/v1/chat/completions'   -H 'accept: application/json'   -H 'Content-Type: application/json'   -d '{
+  "messages": [
+    {
+      "content": "你是一個愚蠢的智慧音箱。除非使用者特別要求回答盡量短促。",
+      "role": "developer"
+    },
+    {
+      "content": "你好，請問5+3等於多少!",
+      "role": "user"
+    }
+  ],
+  "model": "Qwen2.5-Coder-7B",
+  "stream" : true
+}'
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"role":"assistant","content":"你好"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"！"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"5"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"加"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"3"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"等"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"於"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"8"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"。"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"有"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"其他"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"問題"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"需要"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"幫助"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"嗎"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"content":"？"},"finish_reason":null}]}
+{"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{},"finish_reason":"Stop"}]}
+```
+
 ## License
 This project is licensed under the MIT License.
 
