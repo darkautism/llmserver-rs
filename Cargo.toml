@@ -4,7 +4,7 @@ version = "0.1.1"
 edition = "2021"
 
 [patch.crates-io]
-#rkllm-rs = { path = "../rkllm-rs"}
+rkllm-rs = { path = "../rkllm-rs"}
 #sensevoice-rs = { path = "../sensevoice-rs"}
 #autotokenizer = { path = "../auto-tokenizer"}
 
