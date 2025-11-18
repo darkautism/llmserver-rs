@@ -411,26 +411,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bindgen"
-version = "0.72.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895"
-dependencies = [
- "bitflags",
- "cexpr",
- "clang-sys",
- "itertools 0.13.0",
- "log",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
- "syn 2.0.99",
-]
-
-[[package]]
 name = "bitflags"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -813,7 +793,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2382,9 +2362,11 @@ dependencies = [
 
 [[package]]
 name = "rkllm-rs"
-version = "0.1.11"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d299d5c8c00713b06464261ec6b4c5f5ca74970820fecea6309a17593493bbd9"
 dependencies = [
- "bindgen 0.72.1",
+ "bindgen",
  "futures",
 ]
 
@@ -2394,7 +2376,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "670d8db681665197c8c469ebe7991b5213458f5ae105e64f6fdb596b462dd162"
 dependencies = [
- "bindgen 0.71.1",
+ "bindgen",
  "bytemuck",
 ]
 
