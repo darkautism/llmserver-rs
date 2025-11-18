@@ -13,6 +13,7 @@ pub struct ModelConfig {
     pub model_name: String,
     pub model_type: ModelType,
     pub model_path: Option<String>,
+    pub tokenizer_repo: Option<String>,
     #[serde(skip_deserializing)]
     pub _asserts_path: String,
     pub cache_path: Option<String>,

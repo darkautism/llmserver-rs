@@ -190,6 +190,26 @@ kautism@kautism-desktop:~$ curl -X 'POST'   'http://192.168.50.169:8080/v1/chat/
 {"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{},"finish_reason":"Stop"}]}
 ```
 
+## Model Config format
+
+```
+{
+    "model_repo": "kautism/DeepSeek-R1-Distill-Qwen-1.5B_w8a8_g128_rk3588.rkllm",
+    "model_name": "DeepSeek-R1-Distill-Qwen-1.5B",
+    "model_type" : "LLM",
+    "model_path": "DeepSeek-R1-Distill-Qwen-1.5B_w8a8_g128_rk3588.rkllm",
+    "think" : false
+}
+```
+model_repo : The repo id in the huggingface, llmserver will clone your model from this path.
+model_name : Model name showing in the API. This field will affect display name in webui.
+model_type : One of LLM/ASR.
+model_path : The real rkllm file in the repository.
+tokenizer_repo : Some of repository do not provider tokenizer_config.json but just provider the model file, thus you need this field. This field is option.
+think      : Enable think feature. Some of application which very care response time is not fit think feature.
+
+
+
 ## License
 This project is licensed under the MIT License.
 
