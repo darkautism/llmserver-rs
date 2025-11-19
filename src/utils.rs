@@ -7,6 +7,7 @@ use std::{
 };
 
 use hf_hub::api::Progress;
+use indicatif::HumanBytes;
 use serde::Deserialize;
 
 use crate::ModelProgress;
@@ -90,7 +91,7 @@ impl Progress for OpenWebUIProgress {
             total: size,
             download_done: false,
             finished: false,
-            message: format!("開始下載模型：{}", filename),
+            message: format!("開始下載模型：{}\n", filename),
         };
         // 由於我們在同步 Trait 裡，不能 await，我們必須用 try_send 或 blocking_send (如果需要)
         // 這裡我們假設 MPSC 緩衝區夠大，使用 try_send
@@ -104,7 +105,7 @@ impl Progress for OpenWebUIProgress {
             total: self.total,
             download_done: false,
             finished: false,
-            message: format!("下載中... {}/{}", self.current, self.total),
+            message: format!("下載中... {}/{}\n", self.current, self.total),
         };
         let _ = self.sender.try_send(msg);
     }
@@ -115,7 +116,7 @@ impl Progress for OpenWebUIProgress {
             total: self.total,
             download_done: true,
             finished: false,
-            message: "下載完成，正在初始化模型...".to_owned(),
+            message: "下載完成，正在初始化模型...\n".to_owned(),
         };
         let _ = self.sender.try_send(msg);
     }
@@ -132,9 +133,9 @@ impl ModelProgress for OpenWebUIProgress {
             download_done: true,
             finished: false,
             message: format!(
-                "下載完成，開始載入 RKLLM 核心 {} ({})...",
+                "下載完成，開始載入 RKLLM 核心 {} ({})...\n",
                 filename,
-                human_bytes::human_bytes(size as f64)
+                HumanBytes(size as u64)
             ),
         };
         let _ = self.sender.try_send(msg);
@@ -154,7 +155,7 @@ impl ModelProgress for OpenWebUIProgress {
                     total,
                     download_done: true,
                     finished: false,
-                    message: format!("讀取模型中，已過去{}秒", start.elapsed().as_secs()),
+                    message: format!("讀取模型中，已過去{}秒\n", start.elapsed().as_secs()),
                 };
                 let _ = sender_clone.try_send(msg);
                 std::thread::sleep(Duration::from_secs(1));
@@ -182,7 +183,7 @@ impl ModelProgress for OpenWebUIProgress {
             total: self.total,
             download_done: true,
             finished: true,
-            message: "模型完全初始化完成，正在啟動 Actor。".to_owned(),
+            message: "模型完全初始化完成，正在啟動 Actor。\n".to_owned(),
         };
         let _ = self.sender.try_send(msg);
     }

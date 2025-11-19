@@ -1,6 +1,8 @@
 use actix::Actor;
 use hf_hub::api::sync::Api;
 use hf_hub::api::Progress;
+use hf_hub::Cache;
+use hf_hub::Repo;
 use rkllm_rs::prelude::*;
 use serde_variant::to_variant_name;
 use std::ffi::CString;
@@ -62,7 +64,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
 
         let handle = self.handle.clone();
         let infer_params_cloned = self.infer_params.clone();
-        actix_web::rt::spawn(async move {
+        tokio::task::spawn_blocking( move || {
             let cb = CallbackSendSelfChannel {
                 sender: Some(tx),
                 abort: Box::new(move || {
@@ -120,8 +122,15 @@ impl AIModel for SimpleRkLLM {
             .clone()
             .unwrap_or("model.rkllm".to_owned());
         let (binding, progress) = if let Some(progress) = p {
-            let ret = repo.download_with_progress(filename, progress.clone())?;
-            (ret, Some(progress))
+            if let Some(b) = Cache::default()
+                .repo(Repo::model(config.model_repo.clone()))
+                .get(filename)
+            {
+                (b, Some(progress))
+            } else {
+                let ret = repo.download_with_progress(filename, progress.clone())?;
+                (ret, Some(progress))
+            }
         } else {
             (repo.get(filename)?, None)
         };
@@ -194,22 +203,17 @@ impl RkllmCallbackHandler for CallbackSendSelfChannel {
             LLMCallState::Normal => {
                 if let Some(result) = result {
                     if let Some(sender) = &self.sender {
-                        let mut err = Ok(());
-                        let mut first = true;
-                        while first || err.is_err() {
-                            first = false;
-                            match err {
-                                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                                    // 通知模型關閉
-                                    (self.abort)();
-                                    return;
-                                }
-                                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-                                    std::thread::yield_now();
-                                }
-                                Ok(_) => {}
+                        match sender.blocking_send(result.text.clone()) {
+                            Ok(_) => {
+                                // 發送成功，繼續
                             }
-                            err = sender.try_send(result.text.clone());
+                            Err(_) => {
+                                // 發送失敗，代表接收端 (Receiver) 已經斷線或 Drop 了
+                                // 這時候我們應該停止模型推論
+                                log::info!("Receiver dropped, aborting inference.");
+                                (self.abort)();
+                                self.sender = None; 
+                            }
                         }
                     }
                 }
