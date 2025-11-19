@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use actix::Recipient;
 use actix_web::{
     get, post,
     web::{self, Json},
@@ -8,7 +7,7 @@ use actix_web::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{utils::ModelConfig, ProcessMessages};
+use crate::utils::ModelConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
 struct ListModel {

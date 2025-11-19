@@ -1,16 +1,21 @@
-use actix::Recipient;
+use actix::{Actor, Recipient};
 use actix_web::{
-    middleware::Logger,
     post,
     web::{self, Json},
     HttpResponse, Responder,
 };
 use futures::StreamExt;
-use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, time::SystemTime};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::SystemTime,
+};
 
-use crate::{Content, Message, OpenAiError, ProcessMessages, Role};
+use crate::{
+    utils::ModelConfig, AIModel, Content, Message, OpenAiError, ProcessMessages, Role,
+    ShutdownMessages,
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct Delta {
@@ -103,7 +108,7 @@ pub enum FinishReason {
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct Choice {
-    pub index: i32,
+    pub index: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta: Option<Message>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,7 +149,9 @@ pub struct ChatCompletionsResponse {
 #[post("/chat/completions")]
 pub async fn chat_completions(
     body: Json<ChatCompletionsRequest>,
-    llm_pool: web::Data<HashMap<String, Vec<Recipient<ProcessMessages>>>>,
+    llm_pool: web::Data<Arc<Mutex<HashMap<String, Recipient<ProcessMessages>>>>>,
+    shutdown_pool: web::Data<Arc<Mutex<HashMap<String, Recipient<ShutdownMessages>>>>>,
+    all_configs: web::Data<HashMap<String, ModelConfig>>,
 ) -> impl Responder {
     println!("Received chat completion request: {:?}", body);
     let id = "chatcmpl-123".to_owned(); // Todo: 要改從資料庫拿
@@ -154,7 +161,7 @@ pub async fn chat_completions(
         .expect("Time went backwards")
         .as_secs();
 
-    let Some(llm_pool) = llm_pool.get(&body.model) else {
+    let Some(llm_config) = all_configs.get(&body.model) else {
         return HttpResponse::BadRequest().json(OpenAiError {
             message: format!(
                 "The model {} does not exist or you do not have access to it.",
@@ -166,14 +173,105 @@ pub async fn chat_completions(
         });
     };
 
-    let mut rng = rand::rng();
-    let llm = llm_pool.choose(&mut rng).unwrap();
+    let Ok(mut llm_pool_locked) = llm_pool.try_lock() else {
+        return HttpResponse::BadRequest().json(OpenAiError {
+            message: format!(
+                "There is another instance running, please wait other instance finished."
+            ),
+            code: "busy".to_owned(),
+            r#type: "busy".to_owned(),
+            param: None,
+        });
+    };
+
+    if !llm_pool_locked.contains_key(&body.model) {
+        if body.stream {
+            let shutdowns_tasks = {
+                let mut shutdown_pool_lock = shutdown_pool.lock().unwrap(); // MutexGuard 獲得鎖
+                shutdown_pool_lock
+                    .drain()
+                    .map(|(_, addr)| {
+                        // addr 是 Recipient<ShutdownMessages> 的所有權
+                        async move {
+                            let _ = addr.send(ShutdownMessages).await.unwrap();
+                        }
+                    })
+                    .collect::<Vec<_>>() // 收集成 Vec<impl Future>
+            };
+            llm_pool_locked.clear();
+
+            if let Err(err) = tokio::spawn(async move {
+                futures::future::join_all(shutdowns_tasks).await;
+            })
+            .await
+            {
+                println!("Join failed:{}", err);
+            };
+
+            // ... 建立新的大模型 ...
+            let llm_config_clone = llm_config.clone();
+            let llm_init_future = tokio::task::spawn_blocking(move || {
+                crate::llm::simple::SimpleRkLLM::init(&llm_config_clone)
+            });
+
+            let llm = match llm_init_future.await {
+                Ok(Ok(llm)) => llm,
+                // 處理阻塞任務失敗或 init 失敗的情況
+                Ok(Err(err)) => {
+                    return HttpResponse::InternalServerError().json(OpenAiError {
+                        message: format!(
+                            "LLM init failed: {}", err
+                        ),
+                        code: "model_init_failed".to_owned(),
+                        r#type: "model_init_failed".to_owned(),
+                        param: None,
+                    })
+                }
+                Err(join_err) => {
+                    return HttpResponse::InternalServerError().json(OpenAiError {
+                        message: format!(
+                            "Join error: {}", join_err
+                        ),
+                        code: "join_failed".to_owned(),
+                        r#type: "join_failed".to_owned(),
+                        param: None,
+                    })
+                }
+            };
+            let model_name = llm_config.model_name.clone();
+
+            // TODO: 顯示安裝模型中，而且要定期吐資料避免timeout
+
+            let addr = llm.start(); // 啟動 Actor，一次即可
+            llm_pool_locked.insert(
+                model_name.clone(),
+                addr.clone().recipient::<ProcessMessages>(),
+            );
+            shutdown_pool
+                .lock()
+                .unwrap()
+                .insert(model_name, addr.clone().recipient::<ShutdownMessages>());
+        } else {
+            return HttpResponse::BadRequest().json(OpenAiError {
+                message: format!(
+                    "Model not load, please run stream version api to fix this problem."
+                ),
+                code: "resource_not_found".to_owned(),
+                r#type: "resource_not_found".to_owned(),
+                param: None,
+            });
+        }
+    }
+
+    let Some(llm) = llm_pool_locked.get(&body.model) else {
+        panic!("");
+    };
 
     let send_future = llm.send(ProcessMessages {
         messages: body.messages.clone(),
     });
 
-    match actix_web::rt::time::timeout(std::time::Duration::from_secs(5), send_future).await {
+    match actix_web::rt::time::timeout(std::time::Duration::from_secs(60), send_future).await {
         Ok(Ok(Ok(receiver))) => {
             if body.stream {
                 let object = "chat.completion.chunk".to_owned();
@@ -212,7 +310,8 @@ pub async fn chat_completions(
 
                     stream_counter += 1;
                     // 將 JSON 序列化為字串並添加換行符
-                    let sse_data = "data: ".to_owned() + &serde_json::to_string(&chunk).unwrap() + "\n\n";
+                    let sse_data =
+                        "data: ".to_owned() + &serde_json::to_string(&chunk).unwrap() + "\n\n";
                     Ok::<web::Bytes, actix_web::Error>(web::Bytes::from(sse_data))
                     // 轉為 Bytes 並包裝在 Result 中
                 });
@@ -220,6 +319,16 @@ pub async fn chat_completions(
                     .content_type("text/event-stream")
                     .streaming(sse_stream)
             } else {
+                if !llm_pool_locked.contains_key(&body.model) {
+                    return HttpResponse::BadRequest().json(OpenAiError {
+                        message: format!(
+                            "Your request model is not been load, use stream mode chat to enable this model."
+                        ),
+                        code: "resource_not_found".to_owned(),
+                        r#type: "resource_not_found".to_owned(),
+                        param: None,
+                    });
+                }
                 let a = receiver.collect::<Vec<_>>().await;
                 let content = a.join("");
 
@@ -272,4 +381,33 @@ pub async fn chat_completions(
             param: None,
         }),
     }
+}
+
+fn create_sse_chunk_data(
+    id: &str,
+    created: u64,
+    model: &str,
+    index: usize,
+    role: Option<Role>,
+    content: Option<Content>,
+) -> String {
+    let chunk = ChatCompletionsResponse {
+        id: id.to_owned(),
+        object: "chat.completion.chunk".to_owned(),
+        created,
+        model: model.to_owned(),
+        choices: vec![Choice {
+            index,
+            finish_reason: if content.is_none() {
+                Some(FinishReason::Stop)
+            } else {
+                None
+            },
+            delta: Some(Message { role, content }),
+            logprobs: None,
+            message: None,
+        }],
+        usage: None,
+    };
+    "data: ".to_owned() + &serde_json::to_string(&chunk).unwrap() + "\n\n"
 }

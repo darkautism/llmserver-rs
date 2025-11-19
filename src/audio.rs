@@ -1,10 +1,12 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use actix::Recipient;
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::{post, HttpResponse, Responder};
 use futures::StreamExt;
-use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -32,12 +34,23 @@ struct UploadForm {
 #[post("/audio/transcriptions")]
 pub async fn audio_transcriptions(
     form: MultipartForm<UploadForm>,
-    asr_pool: actix_web::web::Data<HashMap<String, Vec<Recipient<ProcessAudio>>>>,
+    asr_pool: actix_web::web::Data<Arc<Mutex<HashMap<String, Recipient<ProcessAudio>>>>>,
 ) -> impl Responder {
     println!("{:?}", form.file);
     println!("{:?}", form.model);
 
-    let Some(asr_pool) = asr_pool.get(&form.model.0) else {
+    let Ok(mut asr_pool_locked) = asr_pool.try_lock() else {
+        return HttpResponse::BadRequest().json(OpenAiError {
+            message: format!(
+                "There is another instance running, please wait other instance finished."
+            ),
+            code: "busy".to_owned(),
+            r#type: "busy".to_owned(),
+            param: None,
+        });
+    };
+
+    let Some(asr) = asr_pool_locked.get(&form.model.0) else {
         return HttpResponse::BadRequest().json(OpenAiError {
             message: format!(
                 "The model {} does not exist or you do not have access to it.",
@@ -49,8 +62,6 @@ pub async fn audio_transcriptions(
         });
     };
 
-    let mut rng = rand::rng();
-    let asr = asr_pool.choose(&mut rng).unwrap();
     let path = form.file.file.as_ref().to_string_lossy().to_string();
     let send_future = asr.send(ProcessAudio::FilePath(path));
 
