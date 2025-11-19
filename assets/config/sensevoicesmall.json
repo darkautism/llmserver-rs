@@ -1,5 +1,5 @@
 {
     "model_repo": "happyme531/SenseVoiceSmall-RKNN2",
-    "model_name": "SenseVoiceSmall",
+    "model_name": "sensevoice:small",
     "model_type" : "ASR"
 }

@@ -1,6 +1,6 @@
 {
     "model_repo": "thanhtantran/gemma-3-1b-it-rk3588-1.2.0",
-    "model_name": "gemma-3-1b-it-rk3588-1.2.0",
+    "model_name": "gemma-3:1b",
     "model_type" : "LLM",
     "think" : false 
 }

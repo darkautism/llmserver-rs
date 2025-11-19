@@ -1,6 +1,5 @@
 use actix::{Actor, Recipient};
 use clap::{Arg, Command};
-use log::info;
 use std::{
     collections::HashMap,
     fs,
@@ -33,9 +32,9 @@ fn load_model_configs() -> Result<HashMap<String, ModelConfig>, Box<dyn std::err
 
             let mut config: ModelConfig =
                 serde_json::from_str(&contents).map_err(|e| e.to_string())?;
-            info!("Loaded model config: {:?}", path.display());
+            log::info!("Loaded model config: {:?}", path.display());
             config._asserts_path = path.to_string_lossy().to_string();
-            configs.insert(config.model_repo.clone(), config);
+            configs.insert(config.model_name.clone(), config);
         }
     }
 

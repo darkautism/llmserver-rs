@@ -9,7 +9,7 @@ spec:
   storageClassName: ceph-rbd
   resources:
     requests:
-      storage: 9Gi
+      storage: 3Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -43,16 +43,11 @@ spec:
         image: darkautism/llmserver-rs
         securityContext:
           privileged: true
-        args: ["thanhtantran/gemma-3-1b-it-rk3588-1.2.0"]
         ports:
         - containerPort: 8080
         volumeMounts:
         - name: data
           mountPath: /data/models
-        resources:
-          requests:
-            memory: 1500Mi
-            cpu: 2
       volumes:
       - name: data
         persistentVolumeClaim:

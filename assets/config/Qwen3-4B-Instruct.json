@@ -1,6 +1,6 @@
 {
     "model_repo": "dulimov/Qwen3-4B-Instruct-2507-rk3588-1.2.2",
-    "model_name": "Qwen3-4B-Instruct",
+    "model_name": "qwen3:4b-instruct",
     "model_path": "Qwen3-4B-Instruct-2507-rk3588-w8a8_g512-opt-1-hybrid-ratio-1.0.rkllm",
     "model_type" : "LLM",
     "think" : false 

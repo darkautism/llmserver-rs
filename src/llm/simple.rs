@@ -1,5 +1,4 @@
 use actix::Actor;
-use actix::AsyncContext;
 use hf_hub::api::sync::Api;
 use rkllm_rs::prelude::*;
 use serde_variant::to_variant_name;
@@ -50,7 +49,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
         let input = match atoken.apply_chat_template(prompt, true) {
             Ok(parsed) => parsed,
             Err(err) => {
-                println!("apply_chat_template failed. Error: {:?}", err);
+                log::warn!("apply_chat_template failed. Error: {:?}", err);
                 "".to_owned()
             }
         };
@@ -64,7 +63,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
                 sender: Some(tx),
                 abort: Box::new(move || {
                     if let Err(err) = handle.abort() {
-                        println!("Abort rkllm failed: {}", err)
+                        log::info!("Abort rkllm failed: {}", err)
                     }
                 }),
             };

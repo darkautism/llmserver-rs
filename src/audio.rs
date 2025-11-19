@@ -36,10 +36,10 @@ pub async fn audio_transcriptions(
     form: MultipartForm<UploadForm>,
     asr_pool: actix_web::web::Data<Arc<Mutex<HashMap<String, Recipient<ProcessAudio>>>>>,
 ) -> impl Responder {
-    println!("{:?}", form.file);
-    println!("{:?}", form.model);
+    log::info!("{:?}", form.file);
+    log::info!("{:?}", form.model);
 
-    let Ok(mut asr_pool_locked) = asr_pool.try_lock() else {
+    let Ok(asr_pool_locked) = asr_pool.try_lock() else {
         return HttpResponse::BadRequest().json(OpenAiError {
             message: format!(
                 "There is another instance running, please wait other instance finished."

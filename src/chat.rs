@@ -153,7 +153,6 @@ pub async fn chat_completions(
     shutdown_pool: web::Data<Arc<Mutex<HashMap<String, Recipient<ShutdownMessages>>>>>,
     all_configs: web::Data<HashMap<String, ModelConfig>>,
 ) -> impl Responder {
-    println!("Received chat completion request: {:?}", body);
     let id = "chatcmpl-123".to_owned(); // Todo: 要改從資料庫拿
     let created = SystemTime::now();
     let created = created
@@ -161,12 +160,18 @@ pub async fn chat_completions(
         .expect("Time went backwards")
         .as_secs();
 
+    all_configs.iter().for_each(|(k, v)| {
+        log::info!("{}, {:?}", k, v);
+    });
+
     let Some(llm_config) = all_configs.get(&body.model) else {
+        let msg = format!(
+            "The model {} does not exist or you do not have access to it.",
+            body.model
+        );
+        log::warn!("{}", msg);
         return HttpResponse::BadRequest().json(OpenAiError {
-            message: format!(
-                "The model {} does not exist or you do not have access to it.",
-                body.model
-            ),
+            message: msg,
             code: "model_not_found".to_owned(),
             r#type: "invalid_request_error".to_owned(),
             param: None,
@@ -174,10 +179,11 @@ pub async fn chat_completions(
     };
 
     let Ok(mut llm_pool_locked) = llm_pool.try_lock() else {
+        let msg =
+            format!("There is another instance running, please wait other instance finished.");
+        log::warn!("{}", msg);
         return HttpResponse::BadRequest().json(OpenAiError {
-            message: format!(
-                "There is another instance running, please wait other instance finished."
-            ),
+            message: msg,
             code: "busy".to_owned(),
             r#type: "busy".to_owned(),
             param: None,
@@ -205,7 +211,7 @@ pub async fn chat_completions(
             })
             .await
             {
-                println!("Join failed:{}", err);
+                log::error!("Join failed:{}", err);
             };
 
             // ... 建立新的大模型 ...
@@ -219,9 +225,7 @@ pub async fn chat_completions(
                 // 處理阻塞任務失敗或 init 失敗的情況
                 Ok(Err(err)) => {
                     return HttpResponse::InternalServerError().json(OpenAiError {
-                        message: format!(
-                            "LLM init failed: {}", err
-                        ),
+                        message: format!("LLM init failed: {}", err),
                         code: "model_init_failed".to_owned(),
                         r#type: "model_init_failed".to_owned(),
                         param: None,
@@ -229,9 +233,7 @@ pub async fn chat_completions(
                 }
                 Err(join_err) => {
                     return HttpResponse::InternalServerError().json(OpenAiError {
-                        message: format!(
-                            "Join error: {}", join_err
-                        ),
+                        message: format!("Join error: {}", join_err),
                         code: "join_failed".to_owned(),
                         r#type: "join_failed".to_owned(),
                         param: None,

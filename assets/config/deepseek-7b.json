@@ -1,6 +1,6 @@
 {
     "model_repo": "kautism/DeepSeek-R1-Distill-Qwen-7B-RK3588S-RKLLM1.1.4",
-    "model_name": "DeepSeek-R1-Distill-Qwen-7B",
+    "model_name": "deepseek-r1:7b-qwen-distill-7b",
     "model_type" : "LLM",
     "think" : false 
 }
