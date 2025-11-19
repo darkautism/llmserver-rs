@@ -1,9 +1,12 @@
 use actix::Actor;
 use hf_hub::api::sync::Api;
+use hf_hub::api::Progress;
 use rkllm_rs::prelude::*;
 use serde_variant::to_variant_name;
 use std::ffi::CString;
+use std::fs;
 use std::pin::Pin;
+use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
 
 use autotokenizer::AutoTokenizer;
@@ -11,6 +14,7 @@ use autotokenizer::DefaultPromptMessage;
 
 use crate::utils::ModelConfig;
 use crate::AIModel;
+use crate::ModelProgress;
 use crate::ProcessMessages;
 use crate::ShutdownMessages;
 use crate::LLM;
@@ -97,7 +101,10 @@ impl actix::Handler<ShutdownMessages> for SimpleRkLLM {
 
 impl AIModel for SimpleRkLLM {
     type Config = ModelConfig;
-    fn init(config: &ModelConfig) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    fn init_with_progress<P: Progress + ModelProgress + Clone>(
+        config: &Self::Config,
+        p: Option<P>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut param = RKLLMParam {
             ..Default::default()
         };
@@ -108,15 +115,26 @@ impl AIModel for SimpleRkLLM {
             .tokenizer_repo
             .clone()
             .unwrap_or(config.model_repo.clone());
-        let binding = repo.get(
-            &config
-                .model_path
-                .clone()
-                .unwrap_or("model.rkllm".to_owned()),
-        )?;
+        let filename = &config
+            .model_path
+            .clone()
+            .unwrap_or("model.rkllm".to_owned());
+        let (binding, progress) = if let Some(progress) = p {
+            let ret = repo.download_with_progress(filename, progress.clone())?;
+            (ret, Some(progress))
+        } else {
+            (repo.get(filename)?, None)
+        };
         let model_path = binding.to_string_lossy();
         let c_str = CString::new(model_path.as_ref()).unwrap();
         param.model_path = c_str.as_ptr();
+        let progress = if let Some(mut progress) = progress {
+            let meta = fs::metadata(&binding)?;
+            progress.model_load(meta.len().try_into().unwrap(), filename, Instant::now());
+            Some(progress)
+        } else {
+            None
+        };
 
         let handle = match rkllm_init(&mut param) {
             Ok(handle) => handle,
@@ -150,6 +168,10 @@ impl AIModel for SimpleRkLLM {
             },
             ..Default::default()
         };
+
+        if let Some(mut progress) = progress {
+            progress.model_finished();
+        }
 
         Ok(SimpleRkLLM {
             handle,

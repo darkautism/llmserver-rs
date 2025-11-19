@@ -92,21 +92,29 @@ http://*<*your node ip not cluster ip*>*:31106/swagger-ui/
 llmserver support all of pure text to text model now. You can write your own config place in [assets/config](assets/config).
 
 
-Here is tested model llmserver supported.
+Here is tested model and default suppored.
+
+You can add more config to support your model.
 
 ### Text generation model
 
-| Model Name | Size | Mem usage (Estimated) | Microk8s config | Notes |
-| --- | --- | --- | --- | --- |
-| [kautism/DeepSeek-R1-Distill-Qwen-1.5B-RK3588S-RKLLM1.1.4](https://huggingface.co/kautism/DeepSeek-R1-Distill-Qwen-1.5B-RK3588S-RKLLM1.1.4) | 2.04GB | 2.07 GB | [link](k8s/deepseek-1.5b.yaml) | |
-| [kautism/kautism/DeepSeek-R1-Distill-Qwen-7B-RK3588S-RKLLM1.1.4](https://huggingface.co/kautism/kautism/DeepSeek-R1-Distill-Qwen-7B-RK3588S-RKLLM1.1.4) | 8.19GB | 9+ GB | [link](k8s/deepseek-7b.yaml) | Only work on Opi 5 16 GB model|
-| [thanhtantran/gemma-3-1b-it-rk3588-1.2.0](https://huggingface.co/thanhtantran/gemma-3-1b-it-rk3588-1.2.0) | 1.63GB | 1.17 GB | [link](k8s/deepseek-7b.yaml) | |
+All of module large than 7b will not work on 8G version
+
+| Model Name | Size |
+| --- | --- |
+| [deepseek-r1:7b-qwen-distill-1.5b](https://huggingface.co/kautism/DeepSeek-R1-Distill-Qwen-1.5B-RK3588S-RKLLM1.1.4) | 2.04GB |
+| [deepseek-r1:7b-qwen-distill-7b](https://huggingface.co/kautism/kautism/DeepSeek-R1-Distill-Qwen-7B-RK3588S-RKLLM1.1.4) | 8.19GB |
+| [gemma-3:1b](https://huggingface.co/thanhtantran/gemma-3-1b-it-rk3588-1.2.0) | 1.63GB |
+| [qwen2.5:7b-coder-instruct](https://huggingface.co/c01zaut/Qwen2.5-Coder-7B-Instruct-rk3588-1.1.2) | 4.98GB |
+| [qwen3:4b-instruct](https://huggingface.co/dulimov/Qwen3-4B-Instruct-2507-rk3588-1.2.2) | 8.69GB |
+| [seed-coder:8b](https://huggingface.co/limcheekin/seed-coder-8b-rk3588-16k.w8a8.rkllm) | 8.93GB |
+| [qwen2:3b](https://huggingface.co/thanhtantran/Vi-Qwen2-3B-RAG-rk3588-1.2.0) | 3.74GB |
 
 
 ### Speech to text model
-| Model Name | Size | Mem usage (Estimated) | Microk8s config | Notes |
-| --- | --- | --- | --- | --- |
-| [happyme531/SenseVoiceSmall-RKNN2](https://huggingface.co/happyme531/SenseVoiceSmall-RKNN2) | 486MB | 1.1 GB | [link](k8s/sensevoicesmall.yaml) | |
+| Model Name | Size |
+| --- | --- |
+| [happyme531/SenseVoiceSmall-RKNN2](https://huggingface.co/happyme531/SenseVoiceSmall-RKNN2) | 486MB |
 
 
 

@@ -8,13 +8,14 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    pin::Pin,
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
 use crate::{
-    utils::ModelConfig, AIModel, Content, Message, OpenAiError, ProcessMessages, Role,
-    ShutdownMessages,
+    utils::{ModelConfig, OpenWebUIProgress},
+    AIModel, Content, Message, OpenAiError, ProcessMessages, Role, ShutdownMessages,
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
@@ -160,10 +161,6 @@ pub async fn chat_completions(
         .expect("Time went backwards")
         .as_secs();
 
-    all_configs.iter().for_each(|(k, v)| {
-        log::info!("{}, {:?}", k, v);
-    });
-
     let Some(llm_config) = all_configs.get(&body.model) else {
         let msg = format!(
             "The model {} does not exist or you do not have access to it.",
@@ -190,7 +187,7 @@ pub async fn chat_completions(
         });
     };
 
-    if !llm_pool_locked.contains_key(&body.model) {
+    let model_init_progress_stream = if !llm_pool_locked.contains_key(&body.model) {
         if body.stream {
             let shutdowns_tasks = {
                 let mut shutdown_pool_lock = shutdown_pool.lock().unwrap(); // MutexGuard 獲得鎖
@@ -214,12 +211,42 @@ pub async fn chat_completions(
                 log::error!("Join failed:{}", err);
             };
 
+            log::info!("建立進度 Stream");
+            let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(64);
+            let progress_rx_stream = tokio_stream::wrappers::ReceiverStream::new(progress_rx);
+            // 建立進度 Stream
+            let modelname = body.model.clone();
+            let id = id.clone();
+            let progress_sse_stream =
+                progress_rx_stream.map(move |msg: crate::utils::ProgressMessage| {
+                    let id = id.clone();
+                    let created = created.clone();
+                    log::info!("ProgressMessage: {}", msg.message);
+                    // ProgressMessage 序列化為 SSE 格式 (自定義的 Progress 訊息)
+                    Ok::<web::Bytes, actix_web::Error>(web::Bytes::from(create_sse_chunk_data(
+                        &id,
+                        created,
+                        &modelname,
+                        Some(Role::System),
+                        Some(Content::String(msg.message)),
+                    )))
+                });
+
+                
+            log::info!("啟用大模型");
             // ... 建立新的大模型 ...
             let llm_config_clone = llm_config.clone();
+            let progress_tx_clone = progress_tx.clone();
             let llm_init_future = tokio::task::spawn_blocking(move || {
-                crate::llm::simple::SimpleRkLLM::init(&llm_config_clone)
+                let progress_instance = OpenWebUIProgress::new(progress_tx_clone);
+                crate::llm::simple::SimpleRkLLM::init_with_progress(
+                    &llm_config_clone,
+                    Some(progress_instance),
+                )
             });
 
+            log::info!("處理阻塞任務失敗");
+            let model_name = llm_config.model_name.clone();
             let llm = match llm_init_future.await {
                 Ok(Ok(llm)) => llm,
                 // 處理阻塞任務失敗或 init 失敗的情況
@@ -240,9 +267,8 @@ pub async fn chat_completions(
                     })
                 }
             };
-            let model_name = llm_config.model_name.clone();
 
-            // TODO: 顯示安裝模型中，而且要定期吐資料避免timeout
+            log::info!("llm.start");
 
             let addr = llm.start(); // 啟動 Actor，一次即可
             llm_pool_locked.insert(
@@ -253,6 +279,7 @@ pub async fn chat_completions(
                 .lock()
                 .unwrap()
                 .insert(model_name, addr.clone().recipient::<ShutdownMessages>());
+            Some(progress_sse_stream)
         } else {
             return HttpResponse::BadRequest().json(OpenAiError {
                 message: format!(
@@ -263,7 +290,9 @@ pub async fn chat_completions(
                 param: None,
             });
         }
-    }
+    } else {
+        None
+    };
 
     let Some(llm) = llm_pool_locked.get(&body.model) else {
         panic!("");
@@ -273,12 +302,13 @@ pub async fn chat_completions(
         messages: body.messages.clone(),
     });
 
+    log::info!("llm.send");
     match actix_web::rt::time::timeout(std::time::Duration::from_secs(60), send_future).await {
         Ok(Ok(Ok(receiver))) => {
             if body.stream {
                 let object = "chat.completion.chunk".to_owned();
                 let mut stream_counter = 0;
-                let sse_stream = receiver.map(move |content| {
+                let llm_output_stream = receiver.map(move |content| {
                     let choices = vec![Choice {
                         index: 0,
                         finish_reason: if &content == "" {
@@ -317,9 +347,23 @@ pub async fn chat_completions(
                     Ok::<web::Bytes, actix_web::Error>(web::Bytes::from(sse_data))
                     // 轉為 Bytes 並包裝在 Result 中
                 });
+
+                // 串聯 Stream
+                let final_stream: Pin<
+                    Box<
+                        dyn futures::stream::Stream<Item = Result<web::Bytes, actix_web::Error>>
+                            + Send,
+                    >,
+                > = if let Some(progress_stream) = model_init_progress_stream {
+                    // if: 串聯兩個 Boxed Stream
+                    Box::pin(progress_stream.chain(llm_output_stream))
+                } else {
+                    Box::pin(llm_output_stream)
+                };
+                log::info!("串聯 Stream");
                 actix_web::HttpResponse::Ok()
                     .content_type("text/event-stream")
-                    .streaming(sse_stream)
+                    .streaming(final_stream)
             } else {
                 if !llm_pool_locked.contains_key(&body.model) {
                     return HttpResponse::BadRequest().json(OpenAiError {
@@ -355,7 +399,7 @@ pub async fn chat_completions(
                 }];
 
                 HttpResponse::Ok().json(ChatCompletionsResponse {
-                    id,
+                    id: id.clone(),
                     object,
                     created,
                     model: body.model.clone(),
@@ -389,7 +433,6 @@ fn create_sse_chunk_data(
     id: &str,
     created: u64,
     model: &str,
-    index: usize,
     role: Option<Role>,
     content: Option<Content>,
 ) -> String {
@@ -399,7 +442,7 @@ fn create_sse_chunk_data(
         created,
         model: model.to_owned(),
         choices: vec![Choice {
-            index,
+            index: 0,
             finish_reason: if content.is_none() {
                 Some(FinishReason::Stop)
             } else {

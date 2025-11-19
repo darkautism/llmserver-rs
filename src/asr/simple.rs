@@ -1,15 +1,13 @@
-use std::{
-    pin::Pin,
-    sync::Arc,
-};
+use std::{pin::Pin, sync::Arc};
 
 use actix::Actor;
+use hf_hub::api::Progress;
 use hound::WavReader;
 use sensevoice_rs::{fsmn_vad::VADXOptions, SenseVoiceSmall};
 use serde::Deserialize;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{AIModel, ProcessAudio, ShutdownMessages, AsrText, ASR};
+use crate::{AIModel, AsrText, ModelProgress, ProcessAudio, ShutdownMessages, ASR};
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct SimpleASRConfig {
@@ -75,8 +73,10 @@ impl ASR for SimpleASR {}
 
 impl AIModel for SimpleASR {
     type Config = SimpleASRConfig;
-
-    fn init(config: &Self::Config) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
+    fn init_with_progress<P: Progress + ModelProgress + Clone>(
+        config: &Self::Config,
+        _p: std::option::Option<P>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
     where
         Self: Sized,
     {
