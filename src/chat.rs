@@ -163,7 +163,7 @@ pub async fn chat_completions(
     // 1. 檢查模型設定是否存在
     let Some(llm_config) = all_configs.get(&body.model) else {
         return HttpResponse::BadRequest().json(OpenAiError {
-            message: format!("Model {} does not exist.", body.model),
+            message: format!("Model \"{}\" does not exist.", body.model),
             code: "model_not_found".to_owned(),
             r#type: "invalid_request_error".to_owned(),
             param: None,
@@ -187,7 +187,7 @@ pub async fn chat_completions(
     // 如果模型不存在且不是 Stream 模式，直接報錯
     if !model_exists && !is_stream_mode {
         return HttpResponse::BadRequest().json(OpenAiError {
-            message: "Model not loaded. Use stream mode to load.".to_owned(),
+            message: "Model is not loaded. Use streaming mode to load it first.".to_owned(),
             code: "resource_not_found".to_owned(),
             r#type: "resource_not_found".to_owned(),
             param: None,
@@ -221,7 +221,7 @@ pub async fn chat_completions(
                 }
 
                 // 2. 建立溝通管道
-                log::info!("建立進度 Stream");
+                log::info!("Creating progress stream");
                 let (progress_tx, mut progress_rx) = tokio::sync::mpsc::channel(64);
 
                 // 3. 啟動背景任務

@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let matches = Command::new("rkllm")
-        .about("Stupid webserver ever!")
+        .about("Lightweight RKLLM inference web server")
         .version(VERSION)
         .arg(Arg::new("model_name"))
         .get_matches();
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 //     .insert(model_name, addr.clone().recipient::<ShutdownMessages>());
             }
         } else {
-            panic!("Model {} not found in the configuration!", model_name);
+            panic!("Model \"{}\" not found in the configuration!", model_name);
         }
     }
 

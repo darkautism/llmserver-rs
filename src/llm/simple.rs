@@ -65,7 +65,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
         let input = match atoken.apply_chat_template(prompt, true) {
             Ok(parsed) => parsed,
             Err(err) => {
-                log::warn!("apply_chat_template failed. Error: {:?}", err);
+                log::warn!("Failed to apply chat template. Error: {:?}", err);
                 "".to_owned()
             }
         };
@@ -86,7 +86,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
                     std::thread::spawn(move || {
                         // 因為 handle_arc 不受 exec_lock 保護，所以這裡可以暢通無阻地呼叫
                         if let Err(err) = handle_in_thread.0.abort() {
-                            log::error!("Abort rkllm failed: {}", err);
+                            log::error!("Failed to abort RKLLM execution: {}", err);
                         }
                     });
                 }),
@@ -104,11 +104,14 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
             if let Err(e) = result {
                 log::error!("RKLLM execution failed: {}", e);
                 // 發送錯誤訊息字串，這樣 UI 就會顯示出來
-                let error_msg = format!("Model Error: Execution failed. (Check logs for context length warnings). Details: {}", e);
+                let error_msg = format!(
+                    "Model error: execution failed. Check logs for context-length warnings. Details: {}",
+                    e
+                );
                 if let Err(e) = tx.blocking_send(error_msg) {
                     log::error!("blocking_send failed: {}", e);
                 }
-                if let Err(e) = tx.blocking_send("".to_owned()) {
+                if let Err(e) = tx.blocking_send(String::new()) {
                     log::error!("blocking_send failed: {}", e);
                 }
             }
