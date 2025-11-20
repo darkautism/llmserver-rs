@@ -91,7 +91,7 @@ impl Progress for OpenWebUIProgress {
             total: size,
             download_done: false,
             finished: false,
-            message: format!("開始下載模型：{}\n", filename),
+            message: format!("開始下載模型：{}", filename),
         };
         // 由於我們在同步 Trait 裡，不能 await，我們必須用 try_send 或 blocking_send (如果需要)
         // 這裡我們假設 MPSC 緩衝區夠大，使用 try_send
@@ -116,7 +116,7 @@ impl Progress for OpenWebUIProgress {
             total: self.total,
             download_done: true,
             finished: false,
-            message: "下載完成，正在初始化模型...\n".to_owned(),
+            message: "下載完成，正在初始化模型...".to_owned(),
         };
         let _ = self.sender.try_send(msg);
     }
@@ -133,7 +133,7 @@ impl ModelProgress for OpenWebUIProgress {
             download_done: true,
             finished: false,
             message: format!(
-                "下載完成，開始載入 RKLLM 核心 {} ({})...\n",
+                "下載完成，開始載入 RKLLM 核心 {} ({})...",
                 filename,
                 HumanBytes(size as u64)
             ),
@@ -155,7 +155,7 @@ impl ModelProgress for OpenWebUIProgress {
                     total,
                     download_done: true,
                     finished: false,
-                    message: format!("讀取模型中，已過去{}秒\n", start.elapsed().as_secs()),
+                    message: format!("讀取模型中，已過去{}秒", start.elapsed().as_secs()),
                 };
                 let _ = sender_clone.try_send(msg);
                 std::thread::sleep(Duration::from_secs(1));
@@ -173,7 +173,7 @@ impl ModelProgress for OpenWebUIProgress {
         if let Some(handle) = self.update_handle.take() {
             // .take() 取得所有權後，我們就可以 join
             match handle.join() {
-                Ok(_) => log::info!("Update thread successfully joined."),
+                Ok(_) => (),
                 Err(e) => log::error!("Update thread panicked: {:?}", e),
             }
         }
@@ -183,7 +183,7 @@ impl ModelProgress for OpenWebUIProgress {
             total: self.total,
             download_done: true,
             finished: true,
-            message: "模型完全初始化完成，正在啟動 Actor。\n".to_owned(),
+            message: "模型完全初始化完成，正在啟動 Actor。".to_owned(),
         };
         let _ = self.sender.try_send(msg);
     }

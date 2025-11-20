@@ -8,6 +8,8 @@ use serde_variant::to_variant_name;
 use std::ffi::CString;
 use std::fs;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -22,8 +24,16 @@ use crate::ShutdownMessages;
 use crate::LLM;
 
 #[derive(Debug)]
+struct FakeThreadSafeRKLLM(LLMHandle);
+
+unsafe impl Send for FakeThreadSafeRKLLM {}
+unsafe impl Sync for FakeThreadSafeRKLLM {}
+
+#[derive(Debug)]
 pub struct SimpleRkLLM {
-    handle: LLMHandle,
+    handle: Arc<FakeThreadSafeRKLLM>,
+    // 裡面沒資料，純粹用來卡位
+    exec_lock: Arc<Mutex<()>>,
     atoken: AutoTokenizer,
     infer_params: RKLLMInferParam,
     config: ModelConfig,
@@ -62,19 +72,27 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
 
         let think = self.config.think.unwrap_or(false);
 
-        let handle = self.handle.clone();
+        let handle_arc = self.handle.clone();
+
+        let exec_lock = self.exec_lock.clone();
         let infer_params_cloned = self.infer_params.clone();
-        tokio::task::spawn_blocking( move || {
+        tokio::task::spawn_blocking(move || {
+            let _guard = exec_lock.lock().unwrap();
+            let handle_for_abort = handle_arc.clone();
             let cb = CallbackSendSelfChannel {
                 sender: Some(tx),
                 abort: Box::new(move || {
-                    if let Err(err) = handle.abort() {
-                        log::info!("Abort rkllm failed: {}", err)
-                    }
+                    let handle_in_thread = handle_for_abort.clone();
+                    std::thread::spawn(move || {
+                        // 因為 handle_arc 不受 exec_lock 保護，所以這裡可以暢通無阻地呼叫
+                        if let Err(err) = handle_in_thread.0.abort() {
+                            log::error!("Abort rkllm failed: {}", err);
+                        }
+                    });
                 }),
             };
             // TODO: Maybe someday should have good error handling
-            let _ = handle.run(
+            let _ = handle_arc.0.run(
                 RKLLMInput {
                     input_type: RKLLMInputType::Prompt(input.clone()),
                     enable_thinking: think,
@@ -96,7 +114,8 @@ impl actix::Handler<ShutdownMessages> for SimpleRkLLM {
 
     fn handle(&mut self, _: ShutdownMessages, _: &mut Self::Context) -> Self::Result {
         // TODO: Maybe someday should have good error handling
-        let _ = self.handle.destroy();
+        let _guard = self.exec_lock.lock().unwrap();
+        let _ = self.handle.0.destroy();
         Ok(())
     }
 }
@@ -183,7 +202,8 @@ impl AIModel for SimpleRkLLM {
         }
 
         Ok(SimpleRkLLM {
-            handle,
+            handle: Arc::new(FakeThreadSafeRKLLM(handle)),
+            exec_lock: Arc::new(Mutex::new(())),
             atoken,
             infer_params,
             config: config.clone(),
@@ -212,7 +232,8 @@ impl RkllmCallbackHandler for CallbackSendSelfChannel {
                                 // 這時候我們應該停止模型推論
                                 log::info!("Receiver dropped, aborting inference.");
                                 (self.abort)();
-                                self.sender = None; 
+                                drop(self.sender.take());
+                                self.sender = None;
                             }
                         }
                     }
@@ -221,6 +242,7 @@ impl RkllmCallbackHandler for CallbackSendSelfChannel {
             LLMCallState::Waiting => {}
             LLMCallState::Finish => {
                 drop(self.sender.take());
+                self.sender = None;
             }
             LLMCallState::Error => {}
             LLMCallState::GetLastHiddenLayer => {}
