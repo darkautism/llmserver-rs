@@ -180,9 +180,9 @@ pub async fn chat_completions(
 
     // 檢查模型是否已載入 (這裡只做快速檢查，不長時間持有鎖)
     let model_exists = llm_pool
-        .try_lock()
-        .map(|m| m.contains_key(&model_name))
-        .unwrap_or(false);
+        .lock()
+        .unwrap()
+        .contains_key(&model_name);
 
     // 如果模型不存在且不是 Stream 模式，直接報錯
     if !model_exists && !is_stream_mode {

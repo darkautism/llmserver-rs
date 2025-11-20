@@ -80,7 +80,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
             let _guard = exec_lock.lock().unwrap();
             let handle_for_abort = handle_arc.clone();
             let cb = CallbackSendSelfChannel {
-                sender: Some(tx),
+                sender: Some(tx.clone()),
                 abort: Box::new(move || {
                     let handle_in_thread = handle_for_abort.clone();
                     std::thread::spawn(move || {
@@ -91,8 +91,8 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
                     });
                 }),
             };
-            // TODO: Maybe someday should have good error handling
-            let _ = handle_arc.0.run(
+
+            let result = handle_arc.0.run(
                 RKLLMInput {
                     input_type: RKLLMInputType::Prompt(input.clone()),
                     enable_thinking: think,
@@ -101,6 +101,19 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
                 Some(infer_params_cloned),
                 cb,
             );
+            if let Err(e) = result {
+                log::error!("RKLLM execution failed: {}", e);
+                // 發送錯誤訊息字串，這樣 UI 就會顯示出來
+                let error_msg = format!("Model Error: Execution failed. (Check logs for context length warnings). Details: {}", e);
+                if let Err(e) = tx.blocking_send(error_msg) {
+                    log::error!("blocking_send failed: {}", e);
+                }
+                if let Err(e) = tx.blocking_send("".to_owned()) {
+                    log::error!("blocking_send failed: {}", e);
+                }
+            }
+
+            drop(tx);
         });
 
         // 將 Receiver 轉換為 Stream

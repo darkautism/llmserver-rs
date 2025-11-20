@@ -164,7 +164,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shutdown_pool_lock
             .drain()
             .map(|(_, addr)| async move {
-                let _ = addr.send(ShutdownMessages).await.unwrap();
+                if let Err(e) = addr.send(ShutdownMessages).await {
+                    // 選擇性：你可以把這行 log 拿掉，或者改成 debug/warn
+                    log::warn!("Actor is already dead, skipping shutdown signal: {}", e);
+                }
             })
             .collect::<Vec<_>>()
     };
