@@ -7,6 +7,7 @@ use rkllm_rs::prelude::*;
 use serde_variant::to_variant_name;
 use std::ffi::CString;
 use std::fs;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -22,6 +23,11 @@ use crate::ModelProgress;
 use crate::ProcessMessages;
 use crate::ShutdownMessages;
 use crate::LLM;
+
+enum TokenizerSource {
+    Local(PathBuf),
+    Remote(String),
+}
 
 #[derive(Debug)]
 struct FakeThreadSafeRKLLM(LLMHandle);
@@ -54,9 +60,14 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
             .iter()
             .map(|a| {
                 let content = match &a.content {
-                    Some(crate::Content::String(s)) => s,
-                    Some(crate::Content::Array(items)) => &items.join(""),
-                    None => "", // 老實說不應該發生
+                    Some(crate::Content::String(s)) => s.clone(),
+                    Some(crate::Content::Array(items)) => items.join(""),
+                    Some(crate::Content::Parts(parts)) => parts
+                        .iter()
+                        .filter_map(|p| p.text.clone())
+                        .collect::<Vec<_>>()
+                        .join(""),
+                    None => "".to_owned(),
                 };
                 DefaultPromptMessage::new(to_variant_name(&a.role).unwrap(), &content)
             })
@@ -143,38 +154,37 @@ impl AIModel for SimpleRkLLM {
         p: Option<P>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut param = RKLLMParam {
+            max_context_len: 16384,
+            max_new_tokens: 4096,
+            top_k: 40,
+            top_p: 0.9,
+            temperature: 0.7,
+            repeat_penalty: 1.1,
             ..Default::default()
         };
-        let api = Api::new().unwrap();
 
-        let repo = api.model(config.model_repo.clone());
-        let tokenizer_repo = config
-            .tokenizer_repo
-            .clone()
-            .unwrap_or(config.model_repo.clone());
-        let filename = &config
-            .model_path
-            .clone()
-            .unwrap_or("model.rkllm".to_owned());
-        let (binding, progress) = if let Some(progress) = p {
-            if let Some(b) = Cache::default()
-                .repo(Repo::model(config.model_repo.clone()))
-                .get(filename)
-            {
-                (b, Some(progress))
+        let (model_path, progress) = if let Some(path) = resolve_local_model_path(config) {
+            if path.exists() {
+                log::info!("Using local model: {}", path.display());
+                (path, None::<P>)
             } else {
-                let ret = repo.download_with_progress(filename, progress.clone())?;
-                (ret, Some(progress))
+                log::warn!(
+                    "Local model path not found, falling back to remote: {}",
+                    path.display()
+                );
+                download_model(config, p)?
             }
         } else {
-            (repo.get(filename)?, None)
+            download_model(config, p)?
         };
-        let model_path = binding.to_string_lossy();
-        let c_str = CString::new(model_path.as_ref()).unwrap();
+
+        let c_str = CString::new(model_path.to_string_lossy().as_ref()).unwrap();
         param.model_path = c_str.as_ptr();
+
         let progress = if let Some(mut progress) = progress {
-            let meta = fs::metadata(&binding)?;
-            progress.model_load(meta.len().try_into().unwrap(), filename, Instant::now());
+            let meta = fs::metadata(&model_path)?;
+            let filename = model_path.file_name().unwrap().to_string_lossy();
+            progress.model_load(meta.len().try_into().unwrap(), &filename, Instant::now());
             Some(progress)
         } else {
             None
@@ -189,15 +199,35 @@ impl AIModel for SimpleRkLLM {
                 )));
             }
         };
-        let atoken = match AutoTokenizer::from_pretrained(tokenizer_repo, None) {
-            Ok(atoken) => atoken,
-            Err(e) => {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Error loading tokenizer: {:?}", e),
-                )));
+
+        let tokenizer_source = if let Some(path) = resolve_local_tokenizer_path(config) {
+            if path.exists() {
+                log::info!("Using local tokenizer: {}", path.display());
+                TokenizerSource::Local(path)
+            } else {
+                log::warn!(
+                    "Local tokenizer path not found, falling back to remote: {}",
+                    path.display()
+                );
+                TokenizerSource::Remote(resolve_tokenizer_repo(config))
             }
+        } else {
+            TokenizerSource::Remote(resolve_tokenizer_repo(config))
         };
+
+        let atoken = match tokenizer_source {
+            TokenizerSource::Local(path) => {
+                let tokenizer_file = path.join("tokenizer_config.json");
+                AutoTokenizer::from_file(&tokenizer_file)
+            }
+            TokenizerSource::Remote(repo) => AutoTokenizer::from_pretrained(repo, None),
+        }
+        .map_err(|e| {
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Error loading tokenizer: {:?}", e),
+            ))
+        })?;
 
         let infer_params = RKLLMInferParam {
             mode: RKLLMInferMode::InferGenerate,
@@ -225,6 +255,64 @@ impl AIModel for SimpleRkLLM {
             config: config.clone(),
         })
     }
+}
+
+fn resolve_tokenizer_repo(config: &ModelConfig) -> String {
+    config
+        .tokenizer_repo
+        .clone()
+        .unwrap_or_else(|| config.model_repo.clone())
+}
+
+fn render_local_path_template(path: &str, config: &ModelConfig) -> String {
+    path.replace("{model_name}", &config.model_name)
+}
+
+fn resolve_local_model_path(config: &ModelConfig) -> Option<PathBuf> {
+    config.local_repo.as_ref().map(|local_repo| {
+        let base = PathBuf::from(render_local_path_template(local_repo, config));
+        let model_file = resolve_model_filename(config);
+        base.join(model_file)
+    })
+}
+
+fn resolve_local_tokenizer_path(config: &ModelConfig) -> Option<PathBuf> {
+    config
+        .local_repo
+        .as_ref()
+        .map(|local_repo| PathBuf::from(render_local_path_template(local_repo, config)))
+}
+
+fn resolve_model_filename(config: &ModelConfig) -> String {
+    let model_file = config
+        .model_path
+        .clone()
+        .unwrap_or_else(|| "model.rkllm".to_owned());
+    render_local_path_template(&model_file, config)
+}
+
+fn download_model<P: Progress + ModelProgress + Clone>(
+    config: &ModelConfig,
+    p: Option<P>,
+) -> Result<(PathBuf, Option<P>), Box<dyn std::error::Error + Send + Sync>> {
+    let api = Api::new().unwrap();
+    let repo = api.model(config.model_repo.clone());
+    let filename = resolve_model_filename(config);
+
+    if let Some(progress) = p {
+        if let Some(cached) = Cache::default()
+            .repo(Repo::model(config.model_repo.clone()))
+            .get(&filename)
+        {
+            return Ok((cached, Some(progress)));
+        }
+
+        let path = repo.download_with_progress(&filename, progress.clone())?;
+        return Ok((path, Some(progress)));
+    }
+
+    let path = repo.get(&filename)?;
+    Ok((path, None))
 }
 
 impl LLM for SimpleRkLLM {}
@@ -263,5 +351,66 @@ impl RkllmCallbackHandler for CallbackSendSelfChannel {
             LLMCallState::Error => {}
             LLMCallState::GetLastHiddenLayer => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::ModelType;
+
+    fn sample_config() -> ModelConfig {
+        ModelConfig {
+            model_repo: "example/repo".to_owned(),
+            model_name: "Qwen2.5-3B-abliterated".to_owned(),
+            model_type: ModelType::LLM,
+            model_path: Some("Qwen2.5-3B-abliterated-16k.rkllm".to_owned()),
+            tokenizer_repo: None,
+            local_repo: None,
+            _asserts_path: String::new(),
+            cache_path: None,
+            think: None,
+        }
+    }
+
+    #[test]
+    fn local_repo_derives_model_file_path() {
+        let mut config = sample_config();
+        config.local_repo = Some("/models/{model_name}".to_owned());
+
+        let resolved = resolve_local_model_path(&config).expect("local model path should resolve");
+        assert_eq!(
+            resolved,
+            PathBuf::from("/models/Qwen2.5-3B-abliterated/Qwen2.5-3B-abliterated-16k.rkllm")
+        );
+    }
+
+    #[test]
+    fn local_repo_derives_tokenizer_path() {
+        let mut config = sample_config();
+        config.local_repo = Some("/models/{model_name}".to_owned());
+
+        let resolved = resolve_local_tokenizer_path(&config)
+            .expect("local tokenizer path should resolve");
+        assert_eq!(
+            resolved,
+            PathBuf::from("/models/Qwen2.5-3B-abliterated")
+        );
+    }
+
+    #[test]
+    fn tokenizer_path_is_none_without_local_repo() {
+        let config = sample_config();
+        assert!(resolve_local_tokenizer_path(&config).is_none());
+    }
+
+    #[test]
+    fn model_filename_supports_model_name_template() {
+        let mut config = sample_config();
+        config.model_path = Some("{model_name}.rkllm".to_owned());
+        assert_eq!(
+            resolve_model_filename(&config),
+            "Qwen2.5-3B-abliterated.rkllm".to_owned()
+        );
     }
 }

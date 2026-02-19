@@ -27,6 +27,7 @@ pub struct Delta {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+#[serde(untagged)]
 pub enum Stop {
     String(String),
     Array(Vec<String>),
@@ -42,7 +43,7 @@ pub struct ResponseFormat {
 pub struct Function {
     pub name: String,
     pub description: Option<String>,
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
@@ -52,10 +53,18 @@ pub struct Tool {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+#[serde(untagged)]
 pub enum ToolChoice {
-    Auto,
-    None,
-    Function { name: String },
+    Mode(String),
+    Function {
+        r#type: String,
+        function: ToolChoiceFunction,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct ToolChoiceFunction {
+    pub name: String,
 }
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema, Default)]
@@ -87,13 +96,29 @@ pub struct ChatCompletionsRequest {
     pub max_tokens: Option<i32>,
     pub presence_penalty: Option<f32>,
     pub frequency_penalty: Option<f32>,
-    pub logit_bias: Option<HashMap<i32, f32>>,
+    #[serde(default, deserialize_with = "deserialize_logit_bias")]
+    pub logit_bias: Option<HashMap<String, f32>>,
     pub user: Option<String>,
     pub response_format: Option<ResponseFormat>,
     pub seed: Option<i32>,
     pub tools: Option<Vec<Tool>>,
     pub tool_choice: Option<ToolChoice>,
     pub metadata: Option<HashMap<String, String>>,
+}
+
+fn deserialize_logit_bias<'de, D>(deserializer: D) -> Result<Option<HashMap<String, f32>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match opt {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => {
+            let map: HashMap<String, f32> = serde_json::from_value(v)
+                .map_err(serde::de::Error::custom)?;
+            Ok(Some(map))
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
@@ -154,6 +179,8 @@ pub async fn chat_completions(
     shutdown_pool: web::Data<Arc<Mutex<HashMap<String, Recipient<ShutdownMessages>>>>>,
     all_configs: web::Data<HashMap<String, ModelConfig>>,
 ) -> impl Responder {
+    log::debug!("Received chat request: {:?}", serde_json::to_string(&body.0).unwrap_or_default());
+    
     let id = "chatcmpl-123".to_owned();
     let created = SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -407,4 +434,81 @@ fn create_sse_chunk_data(
         usage: None,
     };
     "data: ".to_owned() + &serde_json::to_string(&chunk).unwrap() + "\n\n"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pi_request_parsing() {
+        let json_str = r#"{"model":"Qwen2.5-3B-abliterated","messages":[{"role":"system","content":"You are a context summarization assistant."},{"role":"user","content":[{"type":"text","text":"hello","image_url":null}]}],"temperature":null,"top_p":null,"n":null,"stream":true,"stop":null,"max_tokens":null,"presence_penalty":null,"frequency_penalty":null,"logit_bias":null,"user":null,"response_format":null,"seed":null,"tools":null,"tool_choice":null,"metadata":null}"#;
+        
+        let result: Result<ChatCompletionsRequest, _> = serde_json::from_str(json_str);
+        match &result {
+            Ok(req) => {
+                println!("Parsed successfully!");
+                for msg in &req.messages {
+                    println!("  Role: {:?}, Content: {:?}", msg.role, msg.content);
+                }
+            }
+            Err(e) => {
+                println!("Parse error: {}", e);
+            }
+        }
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_openai_tools_schema_parsing() {
+        let json_str = r#"{
+            "model":"Qwen2.5-3B-abliterated",
+            "messages":[{"role":"user","content":"What's the weather in Taipei?"}],
+            "tools":[
+                {
+                    "type":"function",
+                    "function":{
+                        "name":"get_weather",
+                        "description":"Get weather by city",
+                        "parameters":{
+                            "type":"object",
+                            "properties":{
+                                "city":{"type":"string"},
+                                "unit":{"type":"string","enum":["celsius","fahrenheit"]}
+                            },
+                            "required":["city"]
+                        }
+                    }
+                }
+            ],
+            "tool_choice":"auto"
+        }"#;
+
+        let req: ChatCompletionsRequest = serde_json::from_str(json_str).expect("request should parse");
+        let params = req
+            .tools
+            .as_ref()
+            .and_then(|tools| tools.first())
+            .and_then(|tool| tool.function.parameters.as_ref())
+            .expect("tools.function.parameters should exist");
+        assert!(params.get("required").is_some(), "required array should be preserved");
+    }
+
+    #[test]
+    fn test_openai_tool_choice_function_object_parsing() {
+        let json_str = r#"{
+            "model":"Qwen2.5-3B-abliterated",
+            "messages":[{"role":"user","content":"Call get_weather."}],
+            "tools":[
+                {
+                    "type":"function",
+                    "function":{"name":"get_weather","parameters":{"type":"object"}}
+                }
+            ],
+            "tool_choice":{"type":"function","function":{"name":"get_weather"}}
+        }"#;
+
+        let result: Result<ChatCompletionsRequest, _> = serde_json::from_str(json_str);
+        assert!(result.is_ok(), "Function tool_choice object should parse: {:?}", result.err());
+    }
 }

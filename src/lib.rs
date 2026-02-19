@@ -39,11 +39,81 @@ pub trait AIModel {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
-#[serde(untagged)]
+#[derive(Debug, Clone, utoipa::ToSchema)]
 pub enum Content {
+    Parts(Vec<ContentPart>),
     String(String),
     Array(Vec<String>),
+}
+
+impl<'de> Deserialize<'de> for Content {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        match value {
+            serde_json::Value::String(s) => Ok(Content::String(s)),
+            serde_json::Value::Array(arr) => {
+                if arr.is_empty() {
+                    Ok(Content::Array(vec![]))
+                } else if arr[0].is_string() {
+                    let strings: Vec<String> = serde_json::from_value(serde_json::Value::Array(arr))
+                        .map_err(serde::de::Error::custom)?;
+                    Ok(Content::Array(strings))
+                } else {
+                    let parts: Vec<ContentPart> = serde_json::from_value(serde_json::Value::Array(arr))
+                        .map_err(serde::de::Error::custom)?;
+                    Ok(Content::Parts(parts))
+                }
+            }
+            _ => Err(serde::de::Error::custom("expected string or array")),
+        }
+    }
+}
+
+impl Serialize for Content {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Content::String(s) => serializer.serialize_str(s),
+            Content::Array(arr) => arr.serialize(serializer),
+            Content::Parts(parts) => parts.serialize(serializer),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct ContentPart {
+    pub r#type: String,
+    #[serde(default)]
+    pub text: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_null_image_url")]
+    pub image_url: Option<ImageUrl>,
+}
+
+fn deserialize_null_image_url<'de, D>(deserializer: D) -> Result<Option<ImageUrl>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match opt {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => {
+            let url: ImageUrl = serde_json::from_value(v).map_err(serde::de::Error::custom)?;
+            Ok(Some(url))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct ImageUrl {
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, utoipa::ToSchema)]

@@ -206,15 +206,32 @@ kautism@kautism-desktop:~$ curl -X 'POST'   'http://192.168.50.169:8080/v1/chat/
     "model_name": "DeepSeek-R1-Distill-Qwen-1.5B",
     "model_type" : "LLM",
     "model_path": "DeepSeek-R1-Distill-Qwen-1.5B_w8a8_g128_rk3588.rkllm",
+    "local_repo": "/data/models/{model_name}",
     "think" : false
 }
 ```
 model_repo : The repo id in the huggingface, llmserver will clone your model from this path.
 model_name : Model name showing in the API. This field will affect display name in webui.
 model_type : One of LLM/ASR.
-model_path : The real rkllm file in the repository.
+model_path : The real rkllm file in the repository. Supports `{model_name}` placeholder.
 tokenizer_repo : Some of repository do not provider tokenizer_config.json but just provider the model file, thus you need this field. This field is option.
+local_repo : Optional local source directory for this model. Supports `{model_name}` placeholder. When set, llmserver resolves model file as `<local_repo>/<model_path|model.rkllm>` and uses `<local_repo>` as tokenizer path by default.
 think      : Enable think feature. Some of application which very care response time is not fit think feature.
+
+### Local model (clean config)
+If you want local models without repeating the model name in multiple fields, use `local_repo`:
+
+```
+{
+    "model_repo": "kautism/Qwen2.5-3B-abliterated-rk3588",
+    "model_name": "Qwen2.5-3B-abliterated",
+    "model_type": "LLM",
+    "model_path": "Qwen2.5-3B-abliterated-16k-rk3588.rkllm",
+    "local_repo": "/home/kautism/llmserver-rs/{model_name}",
+    "think": false
+}
+```
+Use `local_repo` as the single local source field; it keeps config minimal and avoids duplicate path settings.
 
 
 

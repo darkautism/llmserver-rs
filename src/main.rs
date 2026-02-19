@@ -10,7 +10,9 @@ use std::{
 };
 
 use actix_web::{head, middleware::Logger, App, HttpServer, Result};
-use llmserver_rs::{utils::ModelConfig, AIModel, ProcessAudio, ProcessMessages, ShutdownMessages};
+use llmserver_rs::{
+    utils::ModelConfig, AIModel, OpenAiError, ProcessAudio, ProcessMessages, ShutdownMessages,
+};
 use utoipa_actix_web::{scope, AppExt};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -55,7 +57,7 @@ async fn health() -> &'static str {
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
-    std::env::set_var("RUST_LOG", "info");
+    std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     let matches = Command::new("rkllm")
@@ -125,7 +127,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shutdown_recipients_cloned = shutdown_recipients.clone();
     HttpServer::new(move || {
         let shutdown_for_data = shutdown_recipients_cloned.clone();
+        let json_config = actix_web::web::JsonConfig::default()
+            .limit(16 * 1024 * 1024)
+            .error_handler(|err, _req| {
+                log::error!("JSON error: {}", err);
+                let message = format!("Invalid JSON payload: {}", err);
+                actix_web::error::InternalError::from_response(
+                    err,
+                    actix_web::HttpResponse::BadRequest().json(OpenAiError {
+                        message,
+                        r#type: "invalid_request_error".to_owned(),
+                        param: None,
+                        code: "invalid_request_error".to_owned(),
+                    }),
+                )
+                .into()
+            });
         let (app, api) = App::new()
+            .app_data(json_config)
             .app_data(actix_web::web::Data::new(llm_recipients.clone()))
             .app_data(actix_web::web::Data::new(audio_recipients.clone()))
             .app_data(actix_web::web::Data::new(model_config_table.clone()))
