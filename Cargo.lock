@@ -2432,14 +2432,23 @@ dependencies = [
 
 [[package]]
 name = "rkllm-rs"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73cdeb90185569ce1b8a6ada7b4c3a49b21be96f9a5fc38b6760bd770d137d3f"
+checksum = "cc64f58c3731cf98f87697db82ea3e9e08dce6057d8777ab1923292606c77333"
 dependencies = [
- "bindgen 0.72.1",
  "futures",
+ "rkllm-sys-rs",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "rkllm-sys-rs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "867a68c574ed04e8ad16f488718ce30dd410e62eaec7e8a9e55516e88f78fcc0"
+dependencies = [
+ "bindgen 0.72.1",
 ]
 
 [[package]]

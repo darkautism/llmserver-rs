@@ -96,27 +96,6 @@ Here is tested model and default suppored.
 
 You can add more config to support your model.
 
-### Text generation model
-
-All of module large than 7b will not work on 8G version
-
-| Model Name | Size |
-| --- | --- |
-| [deepseek-r1:7b-qwen-distill-1.5b](https://huggingface.co/kautism/DeepSeek-R1-Distill-Qwen-1.5B-RK3588S-RKLLM1.1.4) | 2.04GB |
-| [deepseek-r1:7b-qwen-distill-7b](https://huggingface.co/kautism/kautism/DeepSeek-R1-Distill-Qwen-7B-RK3588S-RKLLM1.1.4) | 8.19GB |
-| [gemma-3:1b](https://huggingface.co/thanhtantran/gemma-3-1b-it-rk3588-1.2.0) | 1.63GB |
-| [qwen2.5:7b-coder-instruct](https://huggingface.co/c01zaut/Qwen2.5-Coder-7B-Instruct-rk3588-1.1.2) | 4.98GB |
-| [qwen3:4b-instruct](https://huggingface.co/dulimov/Qwen3-4B-Instruct-2507-rk3588-1.2.2) | 8.69GB |
-| [seed-coder:8b](https://huggingface.co/limcheekin/seed-coder-8b-rk3588-16k.w8a8.rkllm) | 8.93GB |
-| [qwen2:3b](https://huggingface.co/thanhtantran/Vi-Qwen2-3B-RAG-rk3588-1.2.0) | 3.74GB |
-
-
-### Speech to text model
-| Model Name | Size |
-| --- | --- |
-| [happyme531/SenseVoiceSmall-RKNN2](https://huggingface.co/happyme531/SenseVoiceSmall-RKNN2) | 486MB |
-
-
 
 ## Usage
 
@@ -176,7 +155,7 @@ kautism@kautism-desktop:~$ curl -X 'POST'   'http://192.168.50.169:8080/v1/chat/
       "role": "user"
     }
   ],
-  "model": "Qwen2.5-Coder-7B",
+  "model": "qwen2.5:7b-coder-instruct"
   "stream" : true
 }'
 {"id":"123","object":"chat.completion.chunk","created":1763440094,"choices":[{"index":0,"message":{"role":"assistant","content":"你好"},"finish_reason":null}]}

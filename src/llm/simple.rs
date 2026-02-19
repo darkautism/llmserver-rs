@@ -1,11 +1,11 @@
 use actix::Actor;
+use actix::ActorContext;
 use hf_hub::api::sync::Api;
 use hf_hub::api::Progress;
 use hf_hub::Cache;
 use hf_hub::Repo;
 use rkllm_rs::prelude::*;
 use serde_variant::to_variant_name;
-use std::ffi::CString;
 use std::fs;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -139,10 +139,10 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
 impl actix::Handler<ShutdownMessages> for SimpleRkLLM {
     type Result = Result<(), ()>;
 
-    fn handle(&mut self, _: ShutdownMessages, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: ShutdownMessages, ctx: &mut Self::Context) -> Self::Result {
         // TODO: Maybe someday should have good error handling
         let _guard = self.exec_lock.lock().unwrap();
-        let _ = self.handle.0.destroy();
+        ctx.stop();
         Ok(())
     }
 }
@@ -153,16 +153,6 @@ impl AIModel for SimpleRkLLM {
         config: &Self::Config,
         p: Option<P>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let mut param = RKLLMParam {
-            max_context_len: 16384,
-            max_new_tokens: 4096,
-            top_k: 40,
-            top_p: 0.9,
-            temperature: 0.7,
-            repeat_penalty: 1.1,
-            ..Default::default()
-        };
-
         let (model_path, progress) = if let Some(path) = resolve_local_model_path(config) {
             if path.exists() {
                 log::info!("Using local model: {}", path.display());
@@ -178,8 +168,14 @@ impl AIModel for SimpleRkLLM {
             download_model(config, p)?
         };
 
-        let c_str = CString::new(model_path.to_string_lossy().as_ref()).unwrap();
-        param.model_path = c_str.as_ptr();
+        let mut llm_config = LLMConfig::default();
+        llm_config.model_path = Some(model_path.to_string_lossy().into_owned());
+        llm_config.max_context_len = config.max_context_len;
+        llm_config.max_new_tokens = 4096;
+        llm_config.top_k = 40;
+        llm_config.top_p = 0.9;
+        llm_config.temperature = 0.7;
+        llm_config.repeat_penalty = 1.1;
 
         let progress = if let Some(mut progress) = progress {
             let meta = fs::metadata(&model_path)?;
@@ -190,7 +186,7 @@ impl AIModel for SimpleRkLLM {
             None
         };
 
-        let handle = match rkllm_init(&mut param) {
+        let handle = match init(llm_config) {
             Ok(handle) => handle,
             Err(e) => {
                 return Err(Box::new(std::io::Error::new(
@@ -322,12 +318,12 @@ struct CallbackSendSelfChannel {
     abort: Box<dyn FnMut() + Send + Sync + 'static>,
 }
 impl RkllmCallbackHandler for CallbackSendSelfChannel {
-    fn handle(&mut self, result: Option<RKLLMResult>, state: LLMCallState) {
+    fn handle(&mut self, result: Option<RKLLMResult<'_>>, state: LLMCallState) {
         match state {
             LLMCallState::Normal => {
                 if let Some(result) = result {
                     if let Some(sender) = &self.sender {
-                        match sender.blocking_send(result.text.clone()) {
+                        match sender.blocking_send(result.text.into_owned()) {
                             Ok(_) => {
                                 // 發送成功，繼續
                             }
@@ -364,6 +360,7 @@ mod tests {
             model_repo: "example/repo".to_owned(),
             model_name: "Qwen2.5-3B-abliterated".to_owned(),
             model_type: ModelType::LLM,
+            max_context_len: 16384,
             model_path: Some("Qwen2.5-3B-abliterated-16k.rkllm".to_owned()),
             tokenizer_repo: None,
             local_repo: None,

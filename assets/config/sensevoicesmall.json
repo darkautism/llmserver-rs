@@ -1,5 +1,6 @@
 {
     "model_repo": "happyme531/SenseVoiceSmall-RKNN2",
     "model_name": "sensevoice:small",
-    "model_type" : "ASR"
+    "model_type" : "ASR",
+    "max_context_len": 16384
 }

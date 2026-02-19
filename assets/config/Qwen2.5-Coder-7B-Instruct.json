@@ -1,7 +1,0 @@
-{
-    "model_repo": "c01zaut/Qwen2.5-Coder-7B-Instruct-rk3588-1.1.2",
-    "model_name": "qwen2.5:7b-coder-instruct",
-    "model_path": "Qwen2.5-Coder-7B-Instruct-rk3588-w8a8_g128-opt-1-hybrid-ratio-0.5.rkllm",
-    "model_type" : "LLM",
-    "think" : false 
-}

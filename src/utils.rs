@@ -24,6 +24,8 @@ pub struct ModelConfig {
     pub model_repo: String,
     pub model_name: String,
     pub model_type: ModelType,
+    #[serde(default = "default_max_context_len")]
+    pub max_context_len: i32,
     pub model_path: Option<String>,
     pub tokenizer_repo: Option<String>,
     pub local_repo: Option<String>,
@@ -31,6 +33,10 @@ pub struct ModelConfig {
     pub _asserts_path: String,
     pub cache_path: Option<String>,
     pub think: Option<bool>,
+}
+
+fn default_max_context_len() -> i32 {
+    16384
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

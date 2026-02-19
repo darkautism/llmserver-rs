@@ -1,8 +1,0 @@
-{
-    "model_repo": "limcheekin/seed-coder-8b-rk3588-16k.w8a8.rkllm",
-    "model_name": "seed-coder:8b",
-    "model_type" : "LLM",
-    "model_path": "seed-coder-8b-rk3588-16k.w8a8.rkllm",
-    "tokenizer_repo": "ByteDance-Seed/Seed-Coder-8B-Instruct",
-    "think" : true
-}

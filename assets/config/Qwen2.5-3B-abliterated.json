@@ -1,0 +1,8 @@
+{
+    "model_repo": "kautism/Qwen2.5-3B-abliterated-RKLLM",
+    "model_name": "qwen2.5:3b-abliterated",
+    "model_path": "Qwen2.5-3B-abliterated-16k-rk3588.rkllm",
+    "model_type": "LLM",
+    "max_context_len": 16384,
+    "think": false
+}
