@@ -3,7 +3,7 @@ use std::{pin::Pin, sync::Arc};
 use actix::Actor;
 use hf_hub::api::Progress;
 use hound::WavReader;
-use sensevoice_rs::{fsmn_vad::VADXOptions, SenseVoiceSmall};
+use sensevoice_rs::{silero_vad::VadConfig, SenseVoiceSmall};
 use serde::Deserialize;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -81,7 +81,7 @@ impl AIModel for SimpleASR {
         Self: Sized,
     {
         let handle = Arc::new(
-            SenseVoiceSmall::init(&config.model_repo, VADXOptions::default())
+            SenseVoiceSmall::init(VadConfig::default())
                 .map_err(|_| "Load model error")?,
         );
         Ok(SimpleASR { handle })

@@ -73,7 +73,7 @@ impl actix::Handler<ProcessMessages> for SimpleRkLLM {
             })
             .collect::<Vec<_>>();
 
-        let input = match atoken.apply_chat_template(prompt, true) {
+        let input = match atoken.apply_chat_template(prompt, true, None) {
             Ok(parsed) => parsed,
             Err(err) => {
                 log::warn!("Failed to apply chat template. Error: {:?}", err);
@@ -387,12 +387,9 @@ mod tests {
         let mut config = sample_config();
         config.local_repo = Some("/models/{model_name}".to_owned());
 
-        let resolved = resolve_local_tokenizer_path(&config)
-            .expect("local tokenizer path should resolve");
-        assert_eq!(
-            resolved,
-            PathBuf::from("/models/Qwen2.5-3B-abliterated")
-        );
+        let resolved =
+            resolve_local_tokenizer_path(&config).expect("local tokenizer path should resolve");
+        assert_eq!(resolved, PathBuf::from("/models/Qwen2.5-3B-abliterated"));
     }
 
     #[test]
